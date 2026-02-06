@@ -61,7 +61,7 @@ Data files created for all 7 aircraft in `src/aircraft_data/`:
 | G-V | 48,200 | 90,500 | 5,800 | 41,300 | 2×BR710 | 0.657 | 0.80 |
 | 737-900ER | 98,495 | 187,700 | 47,805 | 46,063 | 2×CFM56-7B26 | 0.627 | 0.785 |
 | P-8 | 90,995 | 188,200 | 23,885 | 73,320 | 2×CFM56-7B27 | 0.627 | 0.785 |
-| 767-200ER | 179,080 | 395,000 | 55,920 | 91,380 | 2×CF6-80C2B2 | 0.605 | 0.80 |
+| 767-200ER | 179,080 | 395,000 | 55,920 | 162,000 | 2×CF6-80C2B2 | 0.605 | 0.80 |
 | A330-200 | 265,900 | 533,519 | 108,908 | 245,264 | 2×CF6-80E1A4 | 0.560 | 0.82 |
 | 777-200LR | 320,000 | 766,000 | 135,000 | 325,300 | 2×GE90-110B1 | 0.545 | 0.84 |
 
@@ -75,7 +75,7 @@ These are the primary targets for model calibration in Phase 1:
 | G-V | 5,150 (5,800 lb) | 6,200 (1,000 lb) | 6,500 (0 lb) |
 | 737-900ER | 2,505 (47,805 lb) | 2,935 (43,142 lb) | 3,990 (0 lb) |
 | P-8 | ~4,500 (23,885 lb)* | — | ~5,800 (0 lb)* |
-| 767-200ER | 5,200 (55,920 lb) | — | 7,900 (0 lb) |
+| 767-200ER | 5,990 (55,920 lb) | 6,100 (53,920 lb) | 7,900 (0 lb) |
 | A330-200 | 4,800 (108,908 lb) | 7,250 (22,354 lb) | 8,000 (0 lb) |
 | 777-200LR | 7,500 (135,000 lb) | 9,400 (120,700 lb) | 10,800 (0 lb) |
 
@@ -91,7 +91,40 @@ These are the primary targets for model calibration in Phase 1:
 
 4. **TSFC trends make physical sense.** Newer, higher-bypass-ratio engines (GE90: BPR ~8.7, TSFC 0.545) are significantly more efficient than older lower-bypass engines (CFM56-2: BPR ~6, TSFC 0.650). The ~16% TSFC improvement from DC-8 engines to 777 engines is consistent with the generational technology gap.
 
-5. **The 767-200ER has an unusual range-payload shape** — at max structural payload, it cannot fill fuel tanks to MTOW (tank-limited), so Points A and B of the standard range-payload diagram merge.
+5. **The 767-200ER has a distinctive range-payload shape** — max fuel capacity (162,000 lb) nearly equals MTOW minus MZFW (160,000 lb), so Points A and B of the range-payload diagram are very close together (only 2,000 lb payload difference). This is a real characteristic of the aircraft, confirmed by cross-checking against the published 6,600 nmi design range.
+
+## Review Response (Post Phase 0 Review)
+
+An external review of this progress report identified four action items. Here is how each was resolved:
+
+### Item 1 [HIGH] — 767-200ER Fuel Capacity: CORRECTED
+**Original value:** 91,380 lb. **Corrected value:** 162,000 lb (24,140 US gal).
+
+The original 91,380 lb figure was the base 767-200 capacity *without* the center section fuel tank that defines the "ER" variant. Many online references incorrectly cite this figure for the -200ER. The correct value of 162,000 lb was confirmed by:
+- Boeing Airport Planning Document D6-58328
+- Breguet range cross-check: 91,380 lb of fuel is physically incompatible with the well-documented 6,600 nmi design range; only ~162,000 lb of fuel produces a consistent result
+
+This correction resolved the "merged A/B corner points" anomaly: the range-payload diagram now has three proper corner points, with Points A (160,000 lb fuel, 55,920 lb payload) and B (162,000 lb fuel, 53,920 lb payload) very close but distinct.
+
+### Item 2 [MEDIUM] — A330-200 and 777-200LR Weights: VERIFIED CORRECT
+- **A330-200 MTOW (533,519 lb = 242,000 kg):** Confirmed as the highest certified -200 option per EASA TCDS EASA.A.004. Not a -300 or -200F value. The odd lb precision is a unit conversion artifact.
+- **A330-200 OEW (265,900 lb = 120,600 kg):** Within expected range for typical 2-class -200 configuration (119,600-121,700 kg across sources).
+- **777-200LR MTOW (766,000 lb):** Confirmed per FAA TCDS A28NM. The proximity to the -300ER (775,000 lb) and -F (766,800 lb) is by design — the LR variant has massive structural reinforcement and auxiliary fuel tanks for ultra-long-range operations.
+
+### Item 3 [LOW] — G-V Maximum Payload: VERIFIED, NUANCE ADDED
+- MZFW = 54,000 lb confirmed from FAA TCDS A12EA
+- OEW = 48,200 lb is Gulfstream's published typical executive configuration (range: 46,000-48,800 lb)
+- Max payload = 5,800 lb is correct given chosen OEW
+- Note for future reference: a science-stripped G-V could have OEW ~46,000 lb, yielding max payload ~8,000 lb. This doesn't change the qualitative conclusion (still needs ~7 aircraft to match DC-8 payload).
+
+### Item 4 [PROCESS] — Unit Consistency Audit: COMPLETED
+Added 23 automated data validation tests in `tests/test_aircraft_data.py`:
+- Unit plausibility checks (detecting potential kg/lb or km/nmi confusion)
+- Weight balance consistency (OEW + payload + fuel vs. MTOW)
+- Range-payload physical consistency (increasing range with decreasing payload)
+- Cross-aircraft sanity checks (TSFC ordering by engine generation, size ordering)
+
+All 23 tests pass. No unit inconsistencies detected.
 
 ## Known Issues and Uncertainties for Reviewer Attention
 
