@@ -114,8 +114,7 @@ def _load_767():
         "max_fuel": d["max_fuel_lb"],
         "range_payload_points": [
             (rp["point_A"]["payload_lb"], rp["point_A"]["fuel_lb"], rp["point_A"]["range_nmi"]),
-            # Point B merges with Point A for 767-200ER (see data file notes)
-            # Use the ferry point as the third calibration point
+            (rp["point_B"]["payload_lb"], rp["point_B"]["fuel_lb"], rp["point_B"]["range_nmi"]),
             (rp["point_C"]["payload_lb"], rp["point_C"]["fuel_lb"], rp["point_C"]["range_nmi"]),
         ],
         "wing_area_ft2": d["wing_area_sqft"],

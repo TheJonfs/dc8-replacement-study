@@ -163,6 +163,26 @@ where f(h) captures altitude variation and g(M) captures Mach variation. The ref
 
 ---
 
+### E3. Non-Cruise Fuel Overhead Model
+**Assumption:** Non-cruise fuel (taxi, takeoff, climb, descent, approach, and reserves) is modeled as a fraction of takeoff weight: `F_overhead = f_oh × W_tow`. The parameter f_oh is calibrated per aircraft alongside the aerodynamic parameters.
+
+**Rationale:** Published range-payload data represents mission range including standard reserves and non-cruise phases. The Breguet range equation models only the cruise segment, so a separate model is needed for non-cruise fuel. The fractional-TOW model captures the physical reality that heavier aircraft burn proportionally more fuel during non-cruise phases (heavier means higher climb fuel, higher reserve fuel, etc.).
+
+**Key insight:** Without this overhead model, a Breguet-based model cannot match the shape of published range-payload diagrams. At max payload (high TOW, low fuel), the overhead fraction of available fuel is much larger than at lighter payload conditions, which is the primary driver of the steep range reduction at high payload.
+
+**What we miss:**
+- Separate modeling of individual non-cruise phases (taxi, climb, descent, reserves)
+- Route-specific effects (different climb profiles for different mission lengths)
+- Weight-dependent reserve policies
+- The individual calibrated parameters (CD0, e, k_adj) should not be interpreted as physically accurate values — they are effective values that work in combination with f_oh to reproduce the correct range-payload behavior
+
+**Calibration results across aircraft:**
+- f_oh ranges from ~0.06 (737-900ER) to ~0.26 (DC-8)
+- The wide variation partly reflects different operational assumptions in the published data
+- Individual aerodynamic parameters may be outside typical physical ranges because they compensate for the simplified overhead model
+
+**Impact: Medium.** The overhead model introduces correlation between calibration parameters, making individual parameters less physically interpretable. However, the combined model matches published range-payload data typically within 1-5% RMS error, which is excellent for a simplified approach. For mission analysis, the calibrated model applies the same overhead consistently, so relative comparisons between aircraft remain valid.
+
 ## F. Mission-Specific Assumptions
 
 (To be populated as we model each mission)
