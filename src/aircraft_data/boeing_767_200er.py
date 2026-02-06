@@ -27,15 +27,25 @@ Engine variant notes:
 
 Weight reconciliation notes:
     MTOW - OEW = max available for fuel + payload = 395,000 - 179,080 = 215,920 lb
-    MZFW - OEW = 235,000 - 179,080 = 55,920 lb (structural payload limit)
-    At max structural payload (55,920 lb):
-      fuel = MTOW - MZFW = 395,000 - 235,000 = 160,000 lb (MTOW limited, within tank cap.)
+    MZFW - OEW = 260,000 - 179,080 = 80,920 lb (structural payload limit)
+    At max structural payload (80,920 lb):
+      fuel = MTOW - MZFW = 395,000 - 260,000 = 135,000 lb (MTOW limited, within tank cap.)
       TOW = MTOW = 395,000 lb
     At max fuel (162,000 lb):
       payload = MTOW - OEW - max_fuel = 395,000 - 179,080 - 162,000 = 53,920 lb
-      This is below MZFW - OEW = 55,920, so MTOW is the binding constraint (not MZFW).
+      This is below MZFW - OEW = 80,920, so MTOW is the binding constraint (not MZFW).
     At ferry (max fuel, zero payload):
       TOW = OEW + max_fuel = 179,080 + 162,000 = 341,080 lb
+
+    CORRECTION HISTORY:
+    - Phase 0 review: fuel capacity corrected from 91,380 lb (base 767-200) to 162,000 lb
+    - Phase 1 review: MZFW corrected from 235,000 lb to 260,000 lb per Boeing APD D6-58328
+      The value 235,000 lb does not appear in any weight variant table for the 767-200ER.
+      Boeing APD lists MZFW = 260,000 lb for the 395,000 lb MTOW variant.
+      Also MLW corrected from 290,000 lb to 300,000 lb per same source.
+      Aircraft Commerce Owner's & Operator's Guide (Issue 46, 2006) confirms:
+        395,000 MTOW / 260,000 MZFW / 300,000 MLW / 181,610 OEW (Boeing std)
+      Our OEW of 179,080 is within the manufacturer's range and retained.
 
 Fuel capacity derivation:
     The 767-200ER has wing tanks plus a center section (body) fuel tank added for
@@ -93,10 +103,16 @@ OEW_LB = 179_080  # lb (Boeing standard, two-class ~216 passenger config)
 # structure. We use the standard OEW as a baseline.
 
 # Maximum Zero Fuel Weight (MZFW)
-# Source: [1] Boeing APD, [2] FAA TCDS
+# Source: [1] Boeing APD D6-58328, [2] FAA TCDS A1NM
 # This is the structural limit on combined OEW + payload (no fuel in wings).
-MZFW_LB = 235_000  # lb
-# Conflicting values: consistent across Boeing APD and TCDS for the ER variant
+# Boeing APD lists six weight variants for the 767-200ER:
+#   MTOW 335k/345k/351k → MZFW = 253,000 lb
+#   MTOW 380k/387k/395k → MZFW = 260,000 lb
+# For our 395,000 lb MTOW variant, MZFW = 260,000 lb.
+MZFW_LB = 260_000  # lb
+# CORRECTION: Previously 235,000 lb, which does not appear in the Boeing APD
+# for any 767-200ER variant. The correct value for the 395k MTOW is 260,000 lb.
+# Confirmed by Aircraft Commerce Owner's & Operator's Guide (Issue 46, 2006).
 
 # Maximum Payload Weight
 # Derived from MZFW - OEW (structural payload limit)
@@ -108,11 +124,14 @@ MAX_PAYLOAD_LB = MZFW_LB - OEW_LB  # = 55,920 lb
 # because crew, oil, and operational items are counted in ZFW but not OEW.
 
 # Maximum Landing Weight (MLW)
-# Source: [1] Boeing APD, [2] FAA TCDS
-MLW_LB = 290_000  # lb
-# Conflicting values:
-#   283,000 lb -- some references for earlier variants
-#   290,000 lb -- standard for the 395,000 lb MTOW ER variant [1]
+# Source: [1] Boeing APD D6-58328, [2] FAA TCDS A1NM
+# Boeing APD lists MLW by weight variant:
+#   MTOW 335k/345k/351k → MLW = 278,000 lb
+#   MTOW 380k/387k → MLW = 285,000 lb
+#   MTOW 395k → MLW = 300,000 lb
+MLW_LB = 300_000  # lb
+# CORRECTION: Previously 290,000 lb. The correct value for the 395k MTOW
+# variant is 300,000 lb per Boeing APD D6-58328.
 
 # Maximum Fuel Weight
 # Source: [1] Boeing APD
@@ -140,38 +159,58 @@ FUEL_CAPACITY_GAL = 24_140  # US gallons (usable)
 # Standard three-corner-point range-payload diagram:
 #
 # Point A: Maximum payload, fuel to fill to MTOW
-#   Payload = MZFW - OEW = 55,920 lb (structural limit)
-#   Fuel = MTOW - MZFW = 395,000 - 235,000 = 160,000 lb
+#   Payload = MZFW - OEW = 260,000 - 179,080 = 80,920 lb (structural limit)
+#   Fuel = MTOW - MZFW = 395,000 - 260,000 = 135,000 lb
 #   TOW = MTOW = 395,000 lb
-#   Note: fuel (160,000) < max fuel (162,000), so fuel is MTOW-limited, not tank-limited.
+#   Note: fuel (135,000) well below max fuel (162,000); MTOW-limited.
+#   With corrected MZFW, Points A and B are now well-separated.
 #
 # Point B: Maximum fuel, payload to fill to MTOW
 #   Fuel = 162,000 lb (max fuel)
 #   Payload = MTOW - OEW - max_fuel = 395,000 - 179,080 - 162,000 = 53,920 lb
-#   Check MZFW: OEW + 53,920 = 233,000 < 235,000 MZFW -- OK
+#   Check MZFW: OEW + 53,920 = 233,000 < 260,000 MZFW -- OK
 #   TOW = MTOW = 395,000 lb
-#   Note: Points A and B are close together (payload drops from 55,920 to 53,920,
-#   fuel increases from 160,000 to 162,000) because max fuel nearly fills
-#   the MTOW - MZFW gap.
 #
 # Point C: Ferry -- maximum fuel, zero payload
 #   Fuel = 162,000 lb
 #   Payload = 0 lb
 #   TOW = OEW + max_fuel = 179,080 + 162,000 = 341,080 lb
 
-# Published range data (Source: [1] Boeing APD, [3] various references):
-RANGE_MAX_PAYLOAD_NMI = 5_990  # nmi at max structural payload (55,920 lb)
-# At max payload: fuel = 160,000 lb (MTOW limited), TOW = 395,000 lb
+# Range estimates for the corrected MZFW = 260,000 lb configuration:
+#
+# Point A range: estimated ~5,150 nmi
+#   Derived from Boeing-published reference: Aircraft Commerce (Issue 46, 2006) lists
+#   6,850 nmi at 174 pax (~36,540 lb) with max fuel for the 395k MTOW variant.
+#   Back-calculating via Breguet ratio from this known point to Point A conditions
+#   (395,000 lb TOW, 135,000 lb fuel) gives ~5,150 nmi.
+#   No directly published range at max structural payload was found.
+#
+# Point B range: estimated ~6,500 nmi
+#   At MTOW with max fuel (162,000 lb) and partial payload (53,920 lb).
+#   Back-calculated from the Aircraft Commerce reference point via Breguet ratio.
+#   Also consistent with Boeing's published design range of 6,600 nmi at ~33,000 lb
+#   payload (less payload → same fuel → slightly more range).
+#
+# Point C range: estimated ~7,850 nmi
+#   Ferry range at max fuel, zero payload. TOW = 341,080 lb.
+#   Cross-checked against Air Seychelles 767-200ER delivery flight of ~7,727 nmi
+#   (Grand Rapids to Mahé, with favorable winds) and BJT Online VIP ferry range
+#   of 7,540 nmi (VIP aircraft have heavier interior, reducing ferry range).
+#   A standard-config ferry range of ~7,850 nmi is consistent with both.
+#
+# Design range reference: 6,600 nmi at ~33,000 lb payload (Boeing published).
+# Aircraft Commerce reference: 6,850 nmi at 174 pax (~36,540 lb), 395k MTOW.
 
-RANGE_MAX_FUEL_NMI = 6_100  # nmi at max fuel with reduced payload (53,920 lb)
-# At max fuel: payload slightly reduced, TOW = 395,000 lb
-# Points A and B are very close in both payload and range because the
-# fuel increase (2,000 lb) is small relative to total fuel.
+RANGE_MAX_PAYLOAD_NMI = 5_150  # nmi at max structural payload (80,920 lb)
+# At max payload: fuel = 135,000 lb (MTOW limited), TOW = 395,000 lb
+
+RANGE_MAX_FUEL_NMI = 6_500  # nmi at max fuel with reduced payload (53,920 lb)
+# At max fuel: payload reduced to fit within MTOW
 
 RANGE_DESIGN_NMI = 6_600  # nmi at typical airline load (~33,000 lb payload)
 # This is Boeing's commonly quoted "design range" figure for the 767-200ER.
 
-RANGE_FERRY_NMI = 7_900  # nmi at max fuel, zero payload
+RANGE_FERRY_NMI = 7_850  # nmi at max fuel, zero payload
 # Ferry range with max fuel (162,000 lb), zero payload
 # TOW = OEW + fuel = 179,080 + 162,000 = 341,080 lb
 
@@ -179,27 +218,30 @@ RANGE_FERRY_NMI = 7_900  # nmi at max fuel, zero payload
 RANGE_PAYLOAD_POINTS = {
     "point_A": {
         "description": "Max structural payload, fuel to MTOW",
-        "payload_lb": 55_920,
-        "fuel_lb": 160_000,  # MTOW - MZFW
+        "payload_lb": MAX_PAYLOAD_LB,  # = 80,920 lb
+        "fuel_lb": 135_000,  # MTOW - MZFW
         "tow_lb": 395_000,
-        "range_nmi": 5_990,
-        "notes": "MTOW-limited; fuel slightly below max tank capacity"
+        "range_nmi": 5_150,
+        "notes": "MTOW-limited; fuel well below max tank capacity. Range estimated "
+                 "via Breguet ratio from Aircraft Commerce 6,850 nmi reference point."
     },
     "point_B": {
         "description": "Max fuel, payload to MTOW",
         "payload_lb": 53_920,  # MTOW - OEW - max_fuel
         "fuel_lb": 162_000,
         "tow_lb": 395_000,
-        "range_nmi": 6_100,
-        "notes": "Max fuel with reduced payload; very close to Point A"
+        "range_nmi": 6_500,
+        "notes": "Max fuel with reduced payload. Consistent with Boeing design range "
+                 "of 6,600 nmi at lower payload."
     },
     "point_C": {
         "description": "Ferry range -- max fuel, zero payload",
         "payload_lb": 0,
         "fuel_lb": 162_000,
         "tow_lb": 341_080,  # OEW + max fuel
-        "range_nmi": 7_900,
-        "notes": "Maximum ferry range"
+        "range_nmi": 7_850,
+        "notes": "Maximum ferry range. Cross-checked against Air Seychelles delivery "
+                 "flight (~7,727 nmi) and BJT VIP ferry range (7,540 nmi)."
     },
 }
 
@@ -212,6 +254,14 @@ RANGE_ADDITIONAL_POINTS = {
         "tow_lb": 374_080,  # OEW + 33,000 + 162,000
         "range_nmi": 6_600,
         "notes": "Boeing's commonly published design range figure"
+    },
+    "aircraft_commerce_ref": {
+        "description": "174 passengers (~36,540 lb payload), max fuel, 395k MTOW variant",
+        "payload_lb": 36_540,
+        "fuel_lb": 162_000,
+        "tow_lb": 377_620,
+        "range_nmi": 6_850,
+        "notes": "Aircraft Commerce Owner's & Operator's Guide (Issue 46, 2006)"
     },
 }
 
