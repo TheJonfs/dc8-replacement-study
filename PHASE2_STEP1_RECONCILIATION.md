@@ -66,40 +66,50 @@ range = step_cruise(cruise_fuel, W_tow - climb_fuel) + climb_dist + descent_dist
 
 Using Path B with Path A's calibrated parameters would produce meaningless mission results. The DC-8 would appear to fly 13,000 nm on fuel that actually gets it 6,400 nm. The 767 would appear to fly 10% shorter than its published capability.
 
-### Recommended approach: Adapt Path B to use f_oh for mission analysis
+### Initial recommendation (pre-review)
 
-Rather than recalibrating (which would require re-validating all range-payload diagrams), the pragmatic approach is to **modify Path B to use f_oh for the non-cruise fuel budget**, preserving calibration fidelity, while retaining Path B's structural advantages for mission-specific modeling:
+The initial recommendation was to use f_oh for the fuel budget across all missions ("hybrid approach"), with mission-specific adjustments layered on top.
 
-**For standard cruise missions:**
-- Use `f_oh × W_tow` as the non-cruise fuel overhead (same as Path A)
-- Deduct overhead from total fuel to get cruise fuel
-- But use Path B's cruise start weight (`W_tow - climb_fuel_estimate`) for better cruise modeling
-- Use Path B's variable climb/descent distances instead of fixed 200+120 nm
+### Reviewer feedback: f_oh is profile-dependent
 
-**For off-design missions (engine-out, low-altitude, climb-descend profiles):**
-- Use `f_oh × W_tow` as the baseline overhead
-- Apply mission-specific adjustments on top:
-  - Engine-out: additional drag penalty, thrust reduction, speed/altitude changes
-  - Low-altitude: recalculate cruise conditions at 1,500 ft instead of optimal altitude
-  - Climb-descend: model repeated segments explicitly, using the calibrated cruise parameters
+The reviewer identified a critical flaw: **f_oh was calibrated against standard transport profiles** (climb to cruise, long cruise, descend). It should only be used for missions that resemble that profile. The three science missions have fundamentally different profiles:
 
-This hybrid approach preserves the calibrated fuel budget (ensuring ranges match published data) while allowing Path B's richer mission modeling capabilities.
+- **Mission 1 (engine-out):** Close enough to a transport profile. f_oh is appropriate.
+- **Mission 2 (climb-descend):** Entirely non-cruise. The cruise/non-cruise distinction that f_oh captures doesn't apply. Using f_oh would remove fuel that should be available for climb-descend cycles — especially destructive for high-f_oh aircraft (DC-8: 84,600 lb removed from 116,000 lb total).
+- **Mission 3 (low-altitude endurance):** Negligible climb (1,500 ft vs. FL350). Effectively all cruise at radically different conditions. f_oh's transport-sized overhead is inappropriate.
 
-### Alternative: Constrained recalibration
+### Confirmed approach for Phase 2
 
-If more accurate cruise fuel burn rates are needed (e.g., for fuel cost per hour metrics), a constrained recalibration could be attempted:
+| Mission | Fuel Budget Method | Physics Parameters |
+|---|---|---|
+| **1 (engine-out)** | f_oh overhead (hybrid) | CD0, e, k_adj + engine-out adjustments |
+| **2 (climb-descend)** | Explicit reserves only; no f_oh | CD0, e, k_adj for each climb/descend segment |
+| **3 (low-altitude)** | Explicit reserves only; no f_oh | CD0, e, k_adj at 1,500 ft conditions |
+
+**For Missions 2 and 3:**
+1. Compute reserve fuel explicitly using the standard reserve policy (5% contingency + 200nm alternate + 30min hold), using `performance.compute_reserve_fuel()` as-is (standard FL250/250kt assumptions for alternate — this is an operational convention, not a physics model)
+2. Allocate all remaining fuel (total minus reserves) to the mission profile
+3. Use calibrated CD0, e, k_adj for the physics of each flight segment
+4. No f_oh deduction
+
+**For Mission 1:**
+1. Use f_oh × W_tow as non-cruise fuel overhead
+2. Model engine-out perturbation (drag increment, thrust reduction, speed/altitude adjustment) on top of the calibrated cruise model
+
+### Known fuel burn rate limitations
+
+The DC-8's calibrated k_adj=0.605 produces cruise fuel burn ~50% below published rates (~5,400 lb/hr vs. 10,000–13,000 lb/hr published). The A330's calibrated model overpredicts fuel burn by ~40%. These errors are masked in Mission 1 by f_oh compensation, but will directly affect Mission 3 results where fuel burn rate is the primary output.
+
+**Mitigation:** Flag DC-8 and A330 Mission 3 results as low-confidence. Consider a sensitivity case using published TSFC values alongside calibrated model results.
+
+### Alternative: Constrained recalibration (lower priority)
+
+If more accurate cruise fuel burn rates are needed, a constrained recalibration could be attempted:
 - Bound k_adj to [0.85, 1.15] (forcing TSFC close to published values)
 - Bound f_oh to [0.02, 0.12] (forcing overhead to physical range)
 - Accept higher RMS range-payload error (~5–15% vs. current 0–6%)
-- Use Path B directly since the overhead would be closer to physical reality
 
-**Trade-off:** Better cruise fuel burn accuracy, worse range-payload calibration, and the "low confidence" aircraft (DC-8, A330) would have even larger calibration errors.
-
-### Recommendation
-
-**Use the hybrid approach** (f_oh overhead + Path B mission structure) for Phase 2. This prioritizes calibration fidelity (matching published data) while enabling the mission-specific modeling that Phase 2 requires. Document the known limitations for DC-8 and A330 cruise fuel burn rates.
-
-The constrained recalibration could be run as a sensitivity analysis alongside the primary results, but should not replace them.
+This remains a lower-priority sensitivity analysis, not the primary approach.
 
 ## Reproduction
 
