@@ -131,7 +131,8 @@ def cruise_conditions(weight_lb, h_ft, mach, wing_area_ft2, CD0, AR, e,
 def optimal_cruise_altitude(weight_lb, mach, wing_area_ft2, CD0, AR, e,
                              tsfc_ref, k_adj=1.0, ceiling_ft=43_000,
                              thrust_slst_lbf=None, n_engines=None,
-                             h_min=25_000, h_step=500, CL_max_cruise=0.60):
+                             h_min=25_000, h_step=500, CL_max_cruise=0.60,
+                             drag_multiplier=1.0):
     """Find the altitude that maximizes specific range.
 
     Searches altitudes from h_min to ceiling_ft in h_step increments,
@@ -187,7 +188,7 @@ def optimal_cruise_altitude(weight_lb, mach, wing_area_ft2, CD0, AR, e,
             thrust_avail = propulsion.thrust_available_cruise(
                 thrust_slst_lbf, h, n_engines
             )
-            if thrust_avail < conds["drag_lbf"]:
+            if thrust_avail < conds["drag_lbf"] * drag_multiplier:
                 # Can't sustain flight at this altitude — stop climbing
                 break
 
@@ -261,7 +262,8 @@ def step_cruise_range(W_initial_lb, fuel_available_lb, mach, wing_area_ft2,
                 W_start, mach, wing_area_ft2, CD0, AR, e,
                 tsfc_ref, k_adj, ceiling_ft,
                 thrust_slst_lbf, n_engines,
-                CL_max_cruise=CL_max_cruise
+                CL_max_cruise=CL_max_cruise,
+                drag_multiplier=drag_multiplier,
             )
 
         # Compute cruise conditions at segment midpoint weight
