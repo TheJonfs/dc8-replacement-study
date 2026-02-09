@@ -234,6 +234,110 @@ From ASSUMPTIONS_LOG.md (G1): Jet-A at $5.50/gal (~$0.82/lb at 6.7 lb/gal).
 
 ---
 
+## Analysis Driver Scripts
+
+All outputs are reproducible from scripts in `src/analysis/`. No ad-hoc or interactive invocation needed.
+
+### Running the scripts
+
+```bash
+# Calibrate all aircraft, print reports, save JSON (~12 min)
+python3 -m src.analysis.run_calibration
+
+# Generate all range-payload plots (~12 min, includes calibration)
+python3 -m src.analysis.run_plots
+
+# Mission analysis (Phase 2 — stub, not yet implemented)
+python3 -m src.analysis.run_missions
+```
+
+### Script dependency chain
+
+```
+run_calibration.py
+    └── run_all_calibrations() → (all_aircraft_data, all_calibrations)
+            ├── Used by run_plots.py
+            └── Used by run_missions.py (Phase 2)
+```
+
+`run_plots.py` and `run_missions.py` import `run_all_calibrations()` from `run_calibration` so calibration only runs once when scripts are called together.
+
+---
+
+## Function Map Across Modules
+
+### Path A: Calibration Range (validated, used for range-payload diagrams)
+
+```
+calibration.calibrate_aircraft()
+    └── calibration.calibration_error()
+            └── calibration.compute_calibration_range()
+                    ├── cruise_fuel = total_fuel - f_oh × W_tow
+                    ├── performance.step_cruise_range()     ← shared core
+                    └── + CLIMB_DISTANCE_NM + DESCENT_DISTANCE_NM (fixed credits)
+```
+
+### Path B: Mission Range (code exists, NOT YET VALIDATED)
+
+```
+performance.compute_range_for_payload()
+    ├── performance.estimate_climb_fuel()    ← energy method
+    ├── performance.estimate_descent_credit() ← 3° glide path
+    ├── performance.compute_reserve_fuel()   ← 5% contingency + 200nm alt + 30min hold
+    ├── performance.step_cruise_range()      ← shared core
+    └── total = climb_distance + cruise_range + descent_distance
+```
+
+### Shared core (used by both paths)
+
+```
+performance.step_cruise_range()
+    ├── performance.optimal_cruise_altitude()  ← SR-maximizing altitude search
+    │       └── performance.cruise_conditions()
+    ├── performance.cruise_conditions()        ← CL, CD, L/D, TSFC at given state
+    │       ├── atmosphere.density(), atmosphere.speed_of_sound()
+    │       ├── aerodynamics.lift_coefficient(), aerodynamics.drag_coefficient()
+    │       └── propulsion.tsfc()
+    └── performance.breguet_range_nm()         ← per-segment range
+```
+
+### Plotting (uses Path A only)
+
+```
+plotting.range_payload.generate_rp_curve()
+    └── calibration.compute_calibration_range()  ← Path A
+
+plotting.range_payload.plot_individual_rp()
+    └── generate_rp_curve()
+
+plotting.range_payload.plot_overlay_rp()
+    └── generate_rp_curve() for each aircraft
+```
+
+### Key functions by module
+
+| Module | Function | Purpose |
+|---|---|---|
+| `performance.py` | `breguet_range_nm()` | Classic Breguet range equation |
+| `performance.py` | `specific_range()` | Instantaneous nm/lb efficiency |
+| `performance.py` | `cruise_conditions()` | All flight params at given state |
+| `performance.py` | `optimal_cruise_altitude()` | SR-maximizing altitude search |
+| `performance.py` | `step_cruise_range()` | Multi-segment cruise integration |
+| `performance.py` | `estimate_climb_fuel()` | Energy-method climb fuel (Path B) |
+| `performance.py` | `estimate_descent_credit()` | Glide distance credit (Path B) |
+| `performance.py` | `compute_reserve_fuel()` | Reserve fuel budget (Path B) |
+| `performance.py` | `compute_range_for_payload()` | Full mission range (Path B) |
+| `calibration.py` | `compute_calibration_range()` | Mission range via overhead model (Path A) |
+| `calibration.py` | `calibrate_aircraft()` | Fit CD0, e, k_adj, f_oh to data |
+| `calibration.py` | `calibrate_p8_from_737()` | Derive P-8 from 737-900ER |
+| `plotting/range_payload.py` | `generate_rp_curve()` | Sweep payload, compute RP curve |
+| `plotting/range_payload.py` | `plot_individual_rp()` | Single aircraft RP diagram |
+| `plotting/range_payload.py` | `plot_overlay_rp()` | All aircraft overlay RP diagram |
+| `aircraft_data/loader.py` | `load_all_aircraft()` | Load all 7 aircraft as standardized dicts |
+| `utils.py` | `fuel_cost()` | Fuel cost from weight ($5.50/gal default) |
+
+---
+
 ## Process Notes
 
 - The human collaborator is a space scientist, not an aircraft engineer. The project instruction is to "err on the side of being able to justify to yourself (or perhaps to another Claude instance reviewing your work)."
