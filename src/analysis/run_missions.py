@@ -1,17 +1,16 @@
 """Run mission analysis for all aircraft across three science missions.
 
-Phase 2 implementation. This script will:
-- Validate Path B against Path A calibration data
-- Run Mission 1 (engine-out SCEL->KPMD) for all 6 candidates
-- Run Mission 2 (vertical sampling NZCH->SCCI) for all 6 candidates
-- Run Mission 3 (low-altitude endurance) for all 6 candidates
-- Compute fleet sizing for G-V and P-8
-- Generate mission performance tables and weight breakdowns
+Phase 2 implementation:
+- Mission 1: Long-range transport with engine-out (SCEL->KPMD)
+- Mission 2: Vertical atmospheric sampling (NZCH->SCCI)  [not yet implemented]
+- Mission 3: Low-altitude smoke survey                    [not yet implemented]
 
 Usage:
     python3 -m src.analysis.run_missions
 
-Status: STUB — not yet implemented. See CLAUDE.md for mission requirements.
+Outputs:
+    Mission performance tables printed to stdout.
+    Segment data available in returned result dicts for plotting.
 """
 
 import os
@@ -19,17 +18,165 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-# These imports establish the intended dependency chain for Phase 2.
-# Mission analysis will need:
-from src.aircraft_data.loader import load_all_aircraft          # aircraft specs
-from src.analysis.run_calibration import run_all_calibrations   # calibrated parameters
-from src.models import performance                              # Path B range computation
-from src.utils import fuel_cost                                 # cost calculations
+from src.aircraft_data.loader import load_all_aircraft
+from src.analysis.run_calibration import run_all_calibrations
+from src.models.missions import simulate_mission1_engine_out
+from src.utils import fuel_cost
 
 # The six study candidates (not seven — 737-900ER is excluded)
 STUDY_CANDIDATES = ["DC-8", "GV", "P-8", "767-200ER", "A330-200", "777-200LR"]
 
 
+def run_mission1(all_ac, calibrations, verbose=True):
+    """Run Mission 1 (engine-out) for all study candidates.
+
+    Args:
+        all_ac: Aircraft data dict from load_all_aircraft()
+        calibrations: Calibration results dict from run_all_calibrations()
+        verbose: Print results to stdout
+
+    Returns:
+        dict keyed by designation -> mission result dict
+    """
+    results = {}
+    for designation in STUDY_CANDIDATES:
+        ac = all_ac[designation]
+        cal = calibrations[designation]
+        result = simulate_mission1_engine_out(ac, cal)
+        results[designation] = result
+        if verbose:
+            _print_mission1_result(result)
+
+    if verbose:
+        _print_mission1_summary(results)
+
+    return results
+
+
+def _print_mission1_result(result):
+    """Print detailed Mission 1 result for a single aircraft."""
+    d = result["designation"]
+    name = result["aircraft_name"]
+    status = "FEASIBLE" if result["feasible"] else "INFEASIBLE"
+
+    print(f"\n{'='*80}")
+    print(f"  Mission 1: {name} ({d})")
+    print(f"  Status: {status}")
+    if result["infeasible_reason"]:
+        print(f"  Reason: {result['infeasible_reason']}")
+    print(f"{'='*80}")
+
+    if result["n_aircraft"] > 1:
+        print(f"  Fleet: {result['n_aircraft']} aircraft "
+              f"(max payload {result['payload_actual_lb']:,.0f} lb each, "
+              f"{result['payload_requested_lb']:,.0f} lb total)")
+
+    pa = result["per_aircraft"]
+    if pa is None:
+        return
+
+    print(f"\n  Weight Breakdown:")
+    print(f"    OEW:              {pa['oew_lb']:>12,.0f} lb")
+    print(f"    Payload:          {pa['payload_lb']:>12,.0f} lb")
+    print(f"    Fuel loaded:      {pa['total_fuel_lb']:>12,.0f} lb")
+    print(f"    Takeoff weight:   {pa['takeoff_weight_lb']:>12,.0f} lb")
+
+    print(f"\n  Fuel Budget:")
+    print(f"    Non-cruise (f_oh):{pa['non_cruise_fuel_lb']:>12,.0f} lb")
+    print(f"    Cruise fuel:      {pa['cruise_fuel_lb']:>12,.0f} lb")
+
+    s1 = pa["segment1"]
+    s2 = pa["segment2"]
+
+    print(f"\n  Segment 1 — Normal Cruise ({s1['n_engines']} engines):")
+    print(f"    Range:            {s1['range_nm']:>12,.0f} nm")
+    print(f"    Fuel burned:      {s1['fuel_burned_lb']:>12,.0f} lb")
+    print(f"    Weight at start:  {s1['weight_at_start_lb']:>12,.0f} lb")
+    print(f"    Weight at end:    {s1['weight_at_end_lb']:>12,.0f} lb")
+    if s1["segments"]:
+        alts1 = [s["altitude_ft"] for s in s1["segments"]]
+        print(f"    Altitude range:   {min(alts1):>8,.0f} – {max(alts1):,.0f} ft")
+
+    print(f"\n  Segment 2 — Engine-Out Cruise ({s2['n_engines']} engines, "
+          f"+{(s2['drag_multiplier']-1)*100:.0f}% drag):")
+    print(f"    Range:            {s2['range_nm']:>12,.0f} nm")
+    print(f"    Fuel burned:      {s2['fuel_burned_lb']:>12,.0f} lb")
+    print(f"    Weight at start:  {s2['weight_at_start_lb']:>12,.0f} lb")
+    print(f"    Weight at end:    {s2['weight_at_end_lb']:>12,.0f} lb")
+    if s2["segments"]:
+        alts2 = [s["altitude_ft"] for s in s2["segments"]]
+        print(f"    Altitude range:   {min(alts2):>8,.0f} – {max(alts2):,.0f} ft")
+
+    print(f"\n  Mission Totals:")
+    print(f"    Cruise range:     {pa['cruise_range_nm']:>12,.0f} nm")
+    print(f"    + climb credit:   {pa['climb_credit_nm']:>12,.0f} nm")
+    print(f"    + descent credit: {pa['descent_credit_nm']:>12,.0f} nm")
+    print(f"    Total range:      {pa['total_range_nm']:>12,.0f} nm")
+    print(f"    Required:         {5050:>12,.0f} nm")
+    print(f"    Surplus/deficit:  {pa['range_surplus_nm']:>+12,.0f} nm")
+    print(f"    Fuel burned:      {pa['total_fuel_burned_lb']:>12,.0f} lb")
+    print(f"    Reserve remaining:{pa['reserve_fuel_lb']:>12,.0f} lb")
+    print(f"    Fuel cost:        ${pa['fuel_cost_usd']:>11,.0f}")
+    print(f"    Cost/1000lb·nm:   ${pa['fuel_cost_per_1000lb_nm']:>11.4f}")
+
+    if result["aggregate"]:
+        agg = result["aggregate"]
+        print(f"\n  Fleet Aggregate ({agg['n_aircraft']} aircraft):")
+        print(f"    Total payload:    {agg['total_payload_lb']:>12,.0f} lb")
+        print(f"    Total fuel:       {agg['total_fuel_lb']:>12,.0f} lb")
+        print(f"    Total fuel cost:  ${agg['total_fuel_cost_usd']:>11,.0f}")
+        print(f"    Cost/1000lb·nm:   ${agg['fuel_cost_per_1000lb_nm']:>11.4f}")
+
+
+def _print_mission1_summary(results):
+    """Print compact comparison table for Mission 1 across all aircraft."""
+    print(f"\n\n{'='*120}")
+    print("MISSION 1 SUMMARY: Long-Range Transport with Engine-Out (SCEL→KPMD, 5,050 nm, 46,000 lb)")
+    print(f"{'='*120}")
+    print(f"{'Aircraft':<12} {'Status':<10} {'n_ac':>4} {'Payload':>10} {'Fuel':>10} "
+          f"{'Range':>8} {'Surplus':>8} {'Reserve':>10} "
+          f"{'Cost':>10} {'$/klb·nm':>10}")
+    print(f"{'-'*12} {'-'*10} {'-'*4} {'-'*10} {'-'*10} "
+          f"{'-'*8} {'-'*8} {'-'*10} "
+          f"{'-'*10} {'-'*10}")
+
+    for d in STUDY_CANDIDATES:
+        r = results[d]
+        status = "OK" if r["feasible"] else "FAIL"
+        pa = r["per_aircraft"]
+
+        if pa is None:
+            print(f"{d:<12} {status:<10} {r['n_aircraft']:>4} "
+                  f"{'—':>10} {'—':>10} {'—':>8} {'—':>8} {'—':>10} {'—':>10} {'—':>10}")
+            continue
+
+        # Use aggregate cost metric if fleet > 1
+        if r["aggregate"]:
+            cost_display = r["aggregate"]["total_fuel_cost_usd"]
+            metric_display = r["aggregate"]["fuel_cost_per_1000lb_nm"]
+        else:
+            cost_display = pa["fuel_cost_usd"]
+            metric_display = pa["fuel_cost_per_1000lb_nm"]
+
+        print(f"{d:<12} {status:<10} {r['n_aircraft']:>4} "
+              f"{pa['payload_lb']:>10,.0f} {pa['total_fuel_lb']:>10,.0f} "
+              f"{pa['total_range_nm']:>8,.0f} {pa['range_surplus_nm']:>+8,.0f} "
+              f"{pa['reserve_fuel_lb']:>10,.0f} "
+              f"${cost_display:>9,.0f} ${metric_display:>9.4f}")
+
+    print(f"\nNotes:")
+    print(f"  - Payload column shows per-aircraft payload (may be < 46,000 lb for fleet operations)")
+    print(f"  - Cost and $/klb·nm show fleet aggregate for multi-aircraft entries")
+    print(f"  - Reserve = cruise fuel not burned (available beyond mission distance)")
+    print(f"  - DC-8 and A330 fuel metrics are low-confidence (see PHASE2_STEP1_RECONCILIATION.md)")
+    print()
+
+
 if __name__ == "__main__":
-    print("Mission analysis not yet implemented.")
-    print("See CLAUDE.md for mission requirements and STATUS.md for next steps.")
+    print("Running calibrations (this may take several minutes)...")
+    all_ac, calibrations = run_all_calibrations(verbose=False)
+
+    print("\n" + "=" * 80)
+    print("MISSION 1: Long-Range Transport with Engine-Out (SCEL → KPMD)")
+    print("=" * 80)
+    mission1_results = run_mission1(all_ac, calibrations, verbose=True)
