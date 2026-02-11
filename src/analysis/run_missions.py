@@ -2,7 +2,7 @@
 
 Phase 2 implementation:
 - Mission 1: Long-range transport with engine-out (SCEL->KPMD)
-- Mission 2: Vertical atmospheric sampling (NZCH->SCCI)  [not yet implemented]
+- Mission 2: Vertical atmospheric sampling (NZCH->SCCI)
 - Mission 3: Low-altitude smoke survey                    [not yet implemented]
 
 Usage:
@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from src.aircraft_data.loader import load_all_aircraft
 from src.analysis.run_calibration import run_all_calibrations
-from src.models.missions import simulate_mission1_engine_out
+from src.models.missions import simulate_mission1_engine_out, simulate_mission2_sampling
 from src.utils import fuel_cost
 
 # The six study candidates (not seven — 737-900ER is excluded)
@@ -177,6 +177,190 @@ def _print_mission1_summary(results):
     print()
 
 
+def run_mission2(all_ac, calibrations, verbose=True):
+    """Run Mission 2 (vertical sampling) for all study candidates.
+
+    Args:
+        all_ac: Aircraft data dict from load_all_aircraft()
+        calibrations: Calibration results dict from run_all_calibrations()
+        verbose: Print results to stdout
+
+    Returns:
+        dict keyed by designation -> mission result dict
+    """
+    results = {}
+    for designation in STUDY_CANDIDATES:
+        ac = all_ac[designation]
+        cal = calibrations[designation]
+        result = simulate_mission2_sampling(ac, cal)
+        results[designation] = result
+        if verbose:
+            _print_mission2_result(result)
+
+    if verbose:
+        _print_mission2_summary(results)
+        _print_mission2_ceiling_table(results)
+
+    return results
+
+
+def _print_mission2_result(result):
+    """Print detailed Mission 2 result for a single aircraft."""
+    d = result["designation"]
+    name = result["aircraft_name"]
+    status = "FEASIBLE" if result["feasible"] else "INFEASIBLE"
+
+    print(f"\n{'='*80}")
+    print(f"  Mission 2: {name} ({d})")
+    print(f"  Status: {status}")
+    if result["infeasible_reason"]:
+        print(f"  Reason: {result['infeasible_reason']}")
+    print(f"{'='*80}")
+
+    if result["n_aircraft"] > 1:
+        print(f"  Fleet: {result['n_aircraft']} aircraft "
+              f"(max payload {result['payload_actual_lb']:,.0f} lb each, "
+              f"{result['payload_requested_lb']:,.0f} lb total)")
+
+    pa = result["per_aircraft"]
+    if pa is None:
+        return
+
+    print(f"\n  Weight Breakdown:")
+    print(f"    OEW:              {pa['oew_lb']:>12,.0f} lb")
+    print(f"    Payload:          {pa['payload_lb']:>12,.0f} lb")
+    print(f"    Fuel loaded:      {pa['total_fuel_lb']:>12,.0f} lb")
+    print(f"    Takeoff weight:   {pa['takeoff_weight_lb']:>12,.0f} lb")
+
+    print(f"\n  Fuel Budget (explicit reserves, no f_oh):")
+    print(f"    Reserve fuel:     {pa['reserve_fuel_lb']:>12,.0f} lb")
+    print(f"    Mission fuel:     {pa['mission_fuel_lb']:>12,.0f} lb")
+
+    print(f"\n  Mission Results:")
+    print(f"    Distance covered: {pa['distance_covered_nm']:>12,.0f} nm (of 4,200 nm)")
+    print(f"    Total time:       {pa['total_time_hr']:>12.1f} hr")
+    print(f"    Cycles completed: {pa['n_cycles']:>12d}")
+    print(f"    Fuel burned:      {pa['fuel_burned_lb']:>12,.0f} lb")
+    print(f"    Fuel remaining:   {pa['fuel_remaining_lb']:>12,.0f} lb")
+
+    print(f"\n  Altitude Performance:")
+    print(f"    Initial ceiling:  {pa['initial_ceiling_ft']:>12,.0f} ft")
+    print(f"    Peak ceiling:     {pa['peak_ceiling_ft']:>12,.0f} ft")
+    print(f"    Final ceiling:    {pa['final_ceiling_ft']:>12,.0f} ft")
+
+    # Cycle detail table
+    cycles = pa["cycles"]
+    if cycles:
+        print(f"\n  Cycle Details:")
+        print(f"    {'#':>3} {'Ceiling':>10} {'Climb Fuel':>12} {'Desc Fuel':>12} "
+              f"{'Cycle Dist':>12} {'Cycle Time':>10} {'W_end':>12} {'Partial':>8}")
+        print(f"    {'-'*3} {'-'*10} {'-'*12} {'-'*12} "
+              f"{'-'*12} {'-'*10} {'-'*12} {'-'*8}")
+        for c in cycles:
+            partial_str = "YES" if c.get("partial", False) else ""
+            print(f"    {c['cycle']:>3d} {c['ceiling_ft']:>10,.0f} "
+                  f"{c['climb_fuel_lb']:>12,.0f} {c['descent_fuel_lb']:>12,.0f} "
+                  f"{c['total_distance_nm']:>12,.1f} {c['total_time_hr']:>10.2f} "
+                  f"{c['weight_end_lb']:>12,.0f} {partial_str:>8}")
+
+    print(f"\n  Cost:")
+    print(f"    Fuel cost:        ${pa['fuel_cost_usd']:>11,.0f}")
+    print(f"    Cost/1000lb·nm:   ${pa['fuel_cost_per_1000lb_nm']:>11.4f}")
+
+    if result["aggregate"]:
+        agg = result["aggregate"]
+        print(f"\n  Fleet Aggregate ({agg['n_aircraft']} aircraft):")
+        print(f"    Total payload:    {agg['total_payload_lb']:>12,.0f} lb")
+        print(f"    Total fuel:       {agg['total_fuel_lb']:>12,.0f} lb")
+        print(f"    Total fuel cost:  ${agg['total_fuel_cost_usd']:>11,.0f}")
+        print(f"    Cost/1000lb·nm:   ${agg['fuel_cost_per_1000lb_nm']:>11.4f}")
+
+
+def _print_mission2_summary(results):
+    """Print compact comparison table for Mission 2 across all aircraft."""
+    print(f"\n\n{'='*130}")
+    print("MISSION 2 SUMMARY: Vertical Atmospheric Sampling (NZCH→SCCI, 4,200 nm, 52,000 lb)")
+    print(f"{'='*130}")
+    print(f"{'Aircraft':<12} {'Status':<8} {'n_ac':>4} {'Payload':>10} {'Fuel':>10} "
+          f"{'Distance':>10} {'Cycles':>7} {'Init Ceil':>10} {'Peak Ceil':>10} "
+          f"{'Cost':>10} {'$/klb·nm':>10}")
+    print(f"{'-'*12} {'-'*8} {'-'*4} {'-'*10} {'-'*10} "
+          f"{'-'*10} {'-'*7} {'-'*10} {'-'*10} "
+          f"{'-'*10} {'-'*10}")
+
+    for d in STUDY_CANDIDATES:
+        r = results[d]
+        status = "OK" if r["feasible"] else "FAIL"
+        pa = r["per_aircraft"]
+
+        if pa is None:
+            print(f"{d:<12} {status:<8} {r['n_aircraft']:>4} "
+                  f"{'—':>10} {'—':>10} {'—':>10} {'—':>7} "
+                  f"{'—':>10} {'—':>10} {'—':>10} {'—':>10}")
+            continue
+
+        # Use aggregate cost metric if fleet > 1
+        if r["aggregate"]:
+            cost_display = r["aggregate"]["total_fuel_cost_usd"]
+            metric_display = r["aggregate"]["fuel_cost_per_1000lb_nm"]
+        else:
+            cost_display = pa["fuel_cost_usd"]
+            metric_display = pa["fuel_cost_per_1000lb_nm"]
+
+        print(f"{d:<12} {status:<8} {r['n_aircraft']:>4} "
+              f"{pa['payload_lb']:>10,.0f} {pa['total_fuel_lb']:>10,.0f} "
+              f"{pa['distance_covered_nm']:>10,.0f} {pa['n_cycles']:>7d} "
+              f"{pa['initial_ceiling_ft']:>10,.0f} {pa['peak_ceiling_ft']:>10,.0f} "
+              f"${cost_display:>9,.0f} ${metric_display:>9.4f}")
+
+    print(f"\nNotes:")
+    print(f"  - Payload column shows per-aircraft payload (may be < 52,000 lb for fleet operations)")
+    print(f"  - Cost and $/klb·nm show fleet aggregate for multi-aircraft entries")
+    print(f"  - Init Ceil = ceiling on first cycle; Peak Ceil = highest ceiling achieved")
+    print(f"  - Cycle bottom altitude: 5,000 ft; ceiling limited by thrust vs. drag")
+    print(f"  - P-8 and A330 calibrations have unphysical CD0 — ceilings are lower confidence")
+    print()
+
+
+def _print_mission2_ceiling_table(results):
+    """Print progressive ceiling table showing altitude vs. cycle for all aircraft."""
+    print(f"\n{'='*100}")
+    print("PROGRESSIVE CEILING TABLE (ft) — Mission 2")
+    print(f"{'='*100}")
+
+    # Find max cycles across all aircraft
+    max_n = 0
+    for d in STUDY_CANDIDATES:
+        pa = results[d].get("per_aircraft")
+        if pa and pa["cycles"]:
+            max_n = max(max_n, len(pa["cycles"]))
+
+    if max_n == 0:
+        print("  No aircraft completed any cycles.")
+        return
+
+    # Header
+    header = f"{'Cycle':>6}"
+    for d in STUDY_CANDIDATES:
+        header += f"  {d:>12}"
+    print(header)
+    print(f"{'-'*6}" + f"  {'-'*12}" * len(STUDY_CANDIDATES))
+
+    # Data rows
+    for i in range(max_n):
+        row = f"{i+1:>6}"
+        for d in STUDY_CANDIDATES:
+            pa = results[d].get("per_aircraft")
+            if pa and pa["cycles"] and i < len(pa["cycles"]):
+                ceil = pa["cycles"][i]["ceiling_ft"]
+                row += f"  {ceil:>12,.0f}"
+            else:
+                row += f"  {'—':>12}"
+        print(row)
+
+    print()
+
+
 if __name__ == "__main__":
     print("Running calibrations (this may take several minutes)...")
     all_ac, calibrations = run_all_calibrations(verbose=False)
@@ -185,3 +369,8 @@ if __name__ == "__main__":
     print("MISSION 1: Long-Range Transport with Engine-Out (SCEL → KPMD)")
     print("=" * 80)
     mission1_results = run_mission1(all_ac, calibrations, verbose=True)
+
+    print("\n" + "=" * 80)
+    print("MISSION 2: Vertical Atmospheric Sampling (NZCH → SCCI)")
+    print("=" * 80)
+    mission2_results = run_mission2(all_ac, calibrations, verbose=True)
