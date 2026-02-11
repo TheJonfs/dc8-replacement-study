@@ -22,13 +22,13 @@ Mission 1 is a standard transport profile (cruise with engine-out perturbation).
 
 ## Approach: Sawtooth Profile Model
 
-Model the mission as a series of **sawtooth cycles**: climb to ceiling → descend to low altitude → repeat. Each cycle:
+Model the mission as a series of **sawtooth cycles**: climb to ceiling → descend to sampling bottom → repeat. Each cycle:
 
-1. **Climb phase:** From low altitude (e.g., 1,500 ft) to the weight-limited ceiling. Uses the energy method: thrust required = drag + weight × sin(γ). Fuel burn, distance, and time computed by integrating in altitude steps.
+1. **Climb phase:** From sampling bottom altitude to the weight-limited ceiling. Uses the energy method: thrust required = drag + weight × sin(γ). Fuel burn, distance, and time computed by integrating in altitude steps.
 
-2. **Descent phase:** From ceiling back to low altitude. Near-idle thrust, minimal fuel burn (~300 lb per descent). Distance computed from glide geometry.
+2. **Descent phase:** From ceiling back to sampling bottom. Near-idle thrust, fuel burn scaled to aircraft size (see Descent Model below). Distance computed from descent rate and TAS.
 
-3. **Low-altitude transit (optional):** Brief level segment at low altitude between descent endpoint and next climb start. May be negligible or zero.
+3. **Low-altitude transit (optional):** Brief level segment at bottom altitude between descent endpoint and next climb start. May be negligible or zero.
 
 The mission continues cycling until one of:
 - Total distance covered ≥ 4,200 nmi (success — mission complete with reserve fuel check)
@@ -80,11 +80,11 @@ Returns: fuel_burned_lb, distance_nm, time_hr, ceiling_ft (actual ceiling achiev
 
 ### 2. `descend_segment(W_start_lb, h_start_ft, h_target_ft, mach_descent, ac, CD0, AR, e, tsfc_ref, k_adj)`
 
-Compute fuel, distance, and time for an idle descent. Much simpler than climb:
+Compute fuel, distance, and time for an idle descent. Simpler than climb but non-trivial for Mission 2 because descent is roughly half of every cycle:
 - Assume constant descent rate (e.g., 2,000 ft/min)
 - Compute time = (h_start - h_target) / descent_rate
-- Fuel burn ≈ idle fuel flow × time (can approximate as a fraction of level-flight fuel flow, or use a fixed small value)
-- Distance = V_TAS_avg × time
+- **Fuel burn scaled to aircraft size:** `descent_fuel = idle_fraction × cruise_fuel_flow × descent_time`, where `idle_fraction` ≈ 0.10–0.15 of cruise thrust fuel flow. Compute `cruise_fuel_flow` from `cruise_conditions()` at a representative mid-descent altitude. This replaces the fixed 300 lb assumption from Mission 1 — over 8–12 cycles, the difference between 300 lb and 1,000+ lb per descent for large aircraft is 10,000–15,000 lb total, which is not negligible.
+- Distance = V_TAS_avg × time (significant: a descent from 40,000 ft to 5,000 ft at 2,000 ft/min covers ~135 nmi)
 
 Returns: fuel_burned_lb, distance_nm, time_hr.
 
@@ -138,10 +138,10 @@ Add `run_mission2()` function parallel to `run_mission1()`, with:
 
 | Parameter | Value | Rationale |
 |---|---|---|
-| Low altitude (cycle bottom) | 1,500 ft | Per CLAUDE.md: scientists want measurements at 1,000–1,500 ft AGL |
+| Low altitude (cycle bottom) | 5,000 ft | Reviewer guidance: 1,500 ft is for Mission 3 (smoke survey), not Mission 2 (column sampling). 5,000 ft is representative of atmospheric profiling operations — the lowest altitudes are sampled on initial descent and final approach, not every cycle. Higher bottom altitude also conserves fuel and increases cycle count. |
 | Climb Mach | cruise_mach × 0.95 | Standard transport climb approximation |
 | Descent rate | 2,000 ft/min | Typical transport idle descent |
-| Descent fuel burn | ~300 lb per descent | Near-idle; low sensitivity |
+| Descent fuel burn | Scaled to aircraft size | `idle_fraction × cruise_fuel_flow × descent_time` with idle_fraction ≈ 0.10–0.15. Per reviewer: fixed 300 lb is too low for large aircraft (A330, 777) where idle flow is 1,000–2,000 lb per descent. Over 8–12 cycles this compounds to 10,000–15,000 lb. |
 | Ceiling criterion | ROC < 100 ft/min | Standard service ceiling definition |
 | Altitude integration step | 1,000 ft | Balance between accuracy and speed |
 | Distance goal | 4,200 nmi | Route NZCH→SCCI |
@@ -157,11 +157,19 @@ Add `run_mission2()` function parallel to `run_mission1()`, with:
 
 The scientists' top priority is "flying higher" — this mission directly tests which aircraft can reach the highest sampling altitudes. The GV excels at altitude but fails on payload. The 767 is likely the best combination of ceiling + payload + fuel.
 
+## Reviewer Feedback (Incorporated)
+
+Two substantive items from the reviewer have been incorporated into this plan:
+
+1. **Cycle bottom altitude raised from 1,500 ft to 5,000 ft.** The 1,500 ft figure applies to Mission 3 (low-altitude smoke survey), not Mission 2. For vertical atmospheric column sampling, a higher bottom (~5,000 ft) is more operationally representative, conserves fuel, and increases the achievable number of sampling cycles. The lowest altitudes are sampled during initial descent and final approach, not on every cycle.
+
+2. **Descent fuel model scaled to aircraft size.** The fixed 300 lb per descent (from Mission 1's simple descent credit) is inadequate for Mission 2, where descent is ~50% of every cycle and compounds over 8–12 cycles. Descent fuel is now computed as `idle_fraction × cruise_fuel_flow × descent_time`, which properly accounts for larger aircraft having higher idle fuel flows (1,000–2,000 lb per descent for A330/777 vs. 300 lb for GV).
+
 ## Risk Areas
 
 1. **Climb fuel integration accuracy.** The 1,000 ft step size should be adequate, but worth checking sensitivity.
 2. **Calibrated CD0 affecting climb ceiling.** The same unphysical CD0 values (P-8, A330, 777) that caused engine-out issues will reduce climb performance. With all engines, thrust margins are larger, so the effect is moderated — but ceiling predictions for these aircraft should still be flagged as lower confidence.
-3. **Distance tracking during climb/descent.** Must be careful that horizontal distance is correctly accumulated. Aircraft covers meaningful distance during each climb and descent — this isn't negligible.
+3. **Descent distance is a major fraction of total mission distance.** A descent from 40,000 ft to 5,000 ft at 2,000 ft/min at Mach 0.80 covers ~135 nmi. Over 8–12 cycles, 1,000–1,600 nmi of the 4,200 nmi budget is consumed during descents alone. Climb distances are similar. Accurate horizontal distance tracking in both climb and descent is essential.
 
 ## Deliverables
 
