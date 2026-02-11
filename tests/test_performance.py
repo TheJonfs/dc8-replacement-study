@@ -103,6 +103,37 @@ class TestPropulsion:
         assert propulsion.engine_out_thrust_fraction(2) == pytest.approx(0.5)
         assert propulsion.engine_out_thrust_fraction(4) == pytest.approx(0.75)
 
+    def test_thrust_two_regime_continuity(self):
+        """Thrust must be continuous at the tropopause boundary."""
+        h_trop = atmosphere.H_TROPOPAUSE
+        # Check values just below and just above the boundary
+        t_below = propulsion.thrust_available_cruise(60000, h_trop - 0.01, 2)
+        t_above = propulsion.thrust_available_cruise(60000, h_trop + 0.01, 2)
+        assert t_below == pytest.approx(t_above, rel=1e-4)
+
+    def test_thrust_steeper_above_tropopause(self):
+        """Thrust should drop faster above tropopause than extrapolated below."""
+        h_trop = atmosphere.H_TROPOPAUSE
+        # Compare actual thrust at 42,000 ft with what the old sigma^0.75
+        # model would give
+        sigma_42k = atmosphere.density_ratio(42000)
+        old_model = 60000 * (sigma_42k ** 0.75) * 2  # old single-regime
+        new_model = propulsion.thrust_available_cruise(60000, 42000, 2)
+        assert new_model < old_model, (
+            f"New model ({new_model:.0f}) should give less thrust than old "
+            f"model ({old_model:.0f}) at 42,000 ft"
+        )
+
+    def test_thrust_unchanged_below_tropopause(self):
+        """Thrust below tropopause should use the original sigma^0.75 model."""
+        for h in [0, 10000, 25000, 35000]:
+            sigma = atmosphere.density_ratio(h)
+            expected = 60000 * (sigma ** 0.75) * 2
+            actual = propulsion.thrust_available_cruise(60000, h, 2)
+            assert actual == pytest.approx(expected, rel=1e-10), (
+                f"Thrust at {h} ft should match original model"
+            )
+
 
 class TestPerformance:
     """Tests for the cruise performance model."""

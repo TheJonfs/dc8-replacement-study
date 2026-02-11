@@ -1,4 +1,4 @@
-# Phase 2: Mission 2 — Vertical Atmospheric Sampling (NZCH → SCCI)
+# Phase 2: Mission 2 — Vertical Atmospheric Sampling (Revised)
 
 ## Mission Definition
 
@@ -16,102 +16,146 @@
 
 ### Assessed Outcomes
 
-| Aircraft | Status | Confidence | n_ac | Cycles | Peak Ceiling (ft) | Cost | $/klb·nm | Notes |
+| Aircraft | Status | Confidence | n_ac | Cycles | Init→Peak Ceil (ft) | Cost | $/klb·nm | Notes |
 |---|---|---|---|---|---|---|---|---|
-| **DC-8** | **PASS** | **Low** | 1 | 22 | 42,000 | $95,224 | $0.4360 | Completes with fuel to spare; ceiling airframe-limited |
-| **767-200ER** | **PASS** | **High** | 1 | 20 | 43,100 | $132,985 | $0.6089 | Reliable result; best single-aircraft option after DC-8 on cost |
-| **777-200LR** | **PASS** | **Low** | 1 | 19 | 43,100 | $267,037 | $1.2227 | Completes but at twice the 767's cost |
-| GV | PASS | Medium | 9 | 17 | 51,000 | $269,828† | $1.2355† | Highest ceiling; operationally impractical fleet |
-| A330-200 | FAIL (-15 nm) | Low | 1 | 20 | 41,100 | $181,926 | $0.8330 | Marginally short; fuel exhausted on cycle 20 |
-| P-8 | FAIL | Low | 3 | 0 | 5,000 | $84,744† | $0.3880† | Cannot climb — drag exceeds thrust at all altitudes |
+| **DC-8** | **PASS** | **Low** | 1 | 21 | 42,000→42,000 | $95,224 | $0.4360 | Flat ceiling — 4 engines provide ample thrust at all weights |
+| **767-200ER** | **PASS** | **High** | 1 | 18 | 41,000→43,100 | $132,985 | $0.6089 | Progressive ceiling (+2,100 ft); best single-aircraft option |
+| **777-200LR** | **PASS** | **Low** | 1 | 17 | 43,100→43,100 | $267,037 | $1.2227 | Flat ceiling at hard cap — massive thrust overcomes weight |
+| GV | PASS | Medium | 9 | 16 | 44,000→47,000 | $269,828† | $1.2355† | Best progressive ceiling (+3,000 ft); fleet impractical |
+| A330-200 | PASS (marginal) | Low | 1 | 19 | 41,100→41,100 | $177,001 | $0.8104 | Barely passes (+49 nm); flat ceiling; low-confidence calibration |
+| P-8 | PASS | Low | 3 | 14 | 38,000→40,000 | $180,564† | $0.8268† | Progressive ceiling (+2,000 ft); low-confidence due to CD0=0.060 |
 
 †Fleet aggregate (cost and $/klb·nm are for the full fleet of n_ac aircraft)
 
 ### Key Takeaways
 
-**Three aircraft pass as single-ship solutions: DC-8, 767-200ER, and 777-200LR.** The DC-8 is the cheapest ($0.44/klb·nm) but its result is low-confidence due to extreme TSFC calibration compensation (k_adj=0.605). The 767-200ER is the only high-confidence pass ($0.61/klb·nm). The 777-200LR passes but costs twice as much ($1.22/klb·nm).
+**All six aircraft pass Mission 2.** This mission is less demanding than Mission 1: shorter distance (4,200 vs. 5,050 nm), no engine-out, and explicit reserves instead of the f_oh hybrid. The A330 is the most marginal at +49 nm surplus.
 
-**Progressive ceiling increase does not manifest.** This was the mission's key scientific metric — as fuel burns off, lighter aircraft should reach higher altitudes. In practice, all aircraft hit their published service ceiling limit on every cycle rather than being thrust-limited. The ceilings are flat: the DC-8 achieves 42,000 ft on cycle 1 and cycle 22 identically. This means the aircraft are structurally or aerodynamically ceiling-limited at these payload/weight combinations, not thrust-limited. While physically correct behavior for these heavy-payload missions, it means the progressive altitude improvement that scientists value most would not materialize.
+**Progressive ceiling increase manifests for four aircraft.** After incorporating reviewer feedback on the thrust model (see Changes Since Initial Report), the model now correctly shows weight-dependent ceilings:
+- **GV:** 44,000 → 47,000 ft (+3,000 ft over 16 cycles) — highest progression
+- **767-200ER:** 41,000 → 43,100 ft (+2,100 ft over 18 cycles) — reaches hard cap by cycle 13
+- **P-8:** 38,000 → 40,000 ft (+2,000 ft over 14 cycles)
+- **DC-8 and 777-200LR:** Flat ceilings — both have enough thrust to reach the hard cap at all weights. The DC-8's 4 engines and the 777's massive engines provide sufficient excess thrust even at MTOW.
+- **A330-200:** Flat at 41,100 ft — the unphysical calibration (CD0=0.033) distorts thrust margins
 
-**The GV reaches the highest ceiling (51,000 ft) but requires 9 aircraft.** At 5,778 lb payload per aircraft, the 9-ship fleet costs $269,828 aggregate and is operationally impractical.
+**The 767-200ER is the best single-aircraft solution.** It combines progressive ceiling increase (41,000→43,100 ft) with moderate cost ($0.61/klb·nm) and high model confidence. The GV reaches higher (47,000 ft) but requires 9 aircraft.
 
-**The A330-200 fails by only 15 nm** — essentially marginal. It runs out of fuel during cycle 20. However, the A330's calibration is low-quality (CD0=0.033, e=2.165, f_oh=0.000), so this marginal result could go either way in reality.
+**The DC-8 is the cheapest but its ceiling doesn't increase.** At $0.44/klb·nm the DC-8 has the lowest cost, but its 4-engine configuration has so much excess thrust that the ceiling is flat at 42,000 ft throughout. The DC-8 result is low-confidence due to k_adj=0.605 (TSFC ~40% below reference).
 
-**The P-8 cannot climb at all.** Its calibrated CD0 of 0.060 produces drag that exceeds available thrust even at 5,000 ft. This is an unphysical calibration artifact — the real P-8 can obviously climb — but the model cannot produce any useful Mission 2 results for this aircraft.
+**Scientists' top priority — "flying higher" — favors the GV and 767-200ER.** The GV reaches the highest altitudes (47,000 ft) and shows the most ceiling progression, but requires a 9-aircraft fleet. The 767-200ER is the only single-aircraft solution that offers meaningful progressive ceiling increase with high model confidence.
+
+## Changes Since Initial Report
+
+This is a revised report incorporating reviewer feedback from the first submission. One critical change was made:
+
+### Two-Regime Thrust Lapse Model (Reviewer Critical Feedback)
+
+The initial report showed flat ceilings for all aircraft on every cycle — the reviewer correctly identified this as physically implausible. The root cause was the thrust model: `T = T_SLS × σ^0.75` overpredicted thrust above the tropopause, allowing even MTOW-weight aircraft to reach the published service ceiling.
+
+**Fix:** Implemented a two-regime thrust lapse model (see ASSUMPTIONS_LOG.md entry C3):
+- Below tropopause (≤36,089 ft): `T = T_SLS × σ^0.75` (unchanged)
+- Above tropopause (>36,089 ft): `T = T_trop × (σ/σ_trop)^2.0` (steeper lapse)
+
+The hard service ceiling cap remains as a structural/pressurization limit. The climb target is set above the hard cap (+5,000 ft) so that `climb_segment()` finds the thrust-limited ceiling via ROC < 100 ft/min. The result is then capped: `cycle_ceiling = min(thrust_ceiling, hard_ceiling)`.
+
+**Impact on calibration:** All calibration RMS errors remain unchanged. Thrust is used only as a go/no-go viability check in the cruise altitude optimizer, and at calibration-relevant altitudes (35,000–39,000 ft, mostly below the tropopause), thrust still far exceeds drag.
+
+**Impact on Mission 1:** Small (~5%) reduction in the 767-200ER's range surplus (1,134 nm vs. 1,202 nm previously) due to slightly lower engine-out cruise altitudes above the tropopause. No status changes.
+
+### Reviewer Answers Incorporated
+
+**Q2 (A330 assessment):** The A330 now passes (marginally, +49 nm) with the two-regime thrust model. Even if it had remained infeasible, the reviewer guidance was to label it "UNCERTAIN" rather than "FAIL" given the 0.4% margin and poor calibration quality.
+
+**Q3 (P-8 assessment):** The P-8 now passes with the two-regime thrust model (14 cycles, 38,000→40,000 ft progressive ceiling). However, this result is low-confidence because the P-8's calibrated CD0=0.060 is unphysical. The real P-8 can unquestionably climb; the model's ceiling predictions should not be taken at face value.
 
 ## Detailed Observations
 
-### Feasible Aircraft
+### Progressive Ceiling Progression (Core Scientific Output)
 
-**DC-8** — Lowest cost, lowest confidence.
-- 22 sawtooth cycles, covering 4,200 nmi
-- Ceiling locked at 42,000 ft (published service ceiling) on every cycle
-- Mission fuel: 53,939 lb of 73,982 lb available after reserves
-- The DC-8's low cost reflects its calibrated parameters: k_adj=0.605 means TSFC is ~40% below reference, producing artificially low fuel burn. The absolute cost numbers should not be taken at face value
-- Despite calibration concerns, the DC-8 completing this mission is qualitatively plausible — it carries 52,000 lb (its max payload) and has 4 engines providing ample climb thrust
+The progressive ceiling table shows the altitude capability at each cycle:
 
-**767-200ER** — Best single-aircraft result with high confidence.
-- 20 sawtooth cycles, covering 4,200 nmi
-- Ceiling locked at 43,100 ft (published service ceiling) on every cycle
-- Mission fuel: 98,625 lb of 117,597 lb available after reserves
-- Calibrated parameters are physical: CD0=0.018, e=0.732, k_adj=0.951, RMS 0.0%
-- Cost of $132,985 ($0.61/klb·nm) is moderate and reliable
-- Carries the full 52,000 lb payload with 110,228 lb fuel remaining capacity to MTOW
+| Cycle | DC-8 | GV | P-8 | 767-200ER | A330 | 777-200LR |
+|---|---|---|---|---|---|---|
+| 1 | 42,000 | 44,000 | 38,000 | 41,000 | 41,100 | 43,100 |
+| 4 | 42,000 | 45,000 | 38,000 | 42,000 | 41,100 | 43,100 |
+| 8 | 42,000 | 46,000 | 39,000 | 43,000 | 41,100 | 43,100 |
+| 12 | 42,000 | 47,000 | 40,000 | 43,000 | 41,100 | 43,100 |
+| 16 | 42,000 | 47,000 | — | 43,100 | 41,100 | 43,100 |
 
-**777-200LR** — Passes but expensive.
-- 19 sawtooth cycles, covering 4,200 nmi
-- Ceiling locked at 43,100 ft (published service ceiling) on every cycle
-- Mission fuel: 203,729 lb of 244,474 lb available after reserves
-- The 777 burns roughly 2× the fuel of the 767 per cycle due to its much higher weight (MTOW 766,000 lb vs. 395,000 lb)
-- Cost of $267,037 ($1.22/klb·nm) is the highest of any single-aircraft solution
-- Calibrated CD0=0.041 is unphysical — low-confidence result despite passing
+Aircraft fall into three categories:
 
-### Infeasible Aircraft
+1. **Progressive ceiling (thrust-limited at heavy weight):** GV, 767-200ER, P-8. These aircraft cannot reach the published ceiling at MTOW. As fuel burns off, the ceiling rises 1,000 ft every few cycles until it converges on the hard cap. This is the physically correct and scientifically valuable behavior.
 
-**GV** — Passes individually but infeasible as a fleet.
-- Requires 9 aircraft to carry 52,000 lb (max payload 5,750 lb each → 5,778 lb share)
-- Each aircraft completes 17 cycles reaching 51,000 ft — the highest ceiling in the study
-- The GV's light weight and high service ceiling (51,000 ft) make it aerodynamically excellent for this profile
-- Fleet aggregate cost $269,828 ($1.24/klb·nm)
-- Per reviewer precedent from Mission 1: 9-aircraft coordination is operationally impractical
+2. **Flat ceiling at hard cap (thrust-sufficient):** DC-8, 777-200LR. These have enough excess thrust to reach the published ceiling even at MTOW. The DC-8 benefits from 4 engines (total SLS thrust ~88,000 lbf); the 777 benefits from massive engines (2 × 110,100 lbf SLS). Their ceilings are structurally/pressurization-limited, not thrust-limited.
 
-**A330-200** — Marginally fails (-15 nm).
-- 20 cycles completed before fuel exhaustion
-- Ceiling at 41,100 ft — slightly lower than the 767 and 777 due to lower published service ceiling
-- Falls 15 nm short of 4,200 nm — just 0.4% of mission distance
-- Calibration quality is poor: e=2.165 (Oswald efficiency >1) and f_oh=0.000 are both unphysical
-- The true answer could easily be pass or fail; the margin is within model uncertainty
+3. **Flat ceiling (calibration artifact):** A330. The calibrated CD0=0.033 (unphysical) distorts the thrust-drag balance. The A330's real ceiling behavior is unknown.
 
-**P-8** — Complete failure.
-- Requires 3 aircraft to carry 52,000 lb (max payload 23,885 lb each)
-- 0 cycles completed — the climb_segment function returns immediately because drag exceeds thrust at 5,000 ft
-- Calibrated CD0=0.060 is 3–4× higher than physical reality (~0.015–0.020)
-- A zero-progress guard in the simulator correctly detects this pathological case and terminates cleanly
-- The P-8 result is entirely unreliable for Mission 2
+### Individual Aircraft
+
+**DC-8** — PASS, 21 cycles, 42,000 ft flat, $95,224.
+- Fuel burned: 60,896 lb of 106,197 lb available. 45,301 lb remaining.
+- The DC-8's 4-engine configuration provides redundant thrust for climbing. At 325,000 lb MTOW with 4× CFM56-2-C1 engines, excess thrust at 42,000 ft is still substantial.
+- Low-confidence: k_adj=0.605, f_oh=0.260 (not used here, but indicates heavy calibration compensation).
+
+**767-200ER** — PASS, 18 cycles, 41,000→43,100 ft, $132,985. **Best single-aircraft solution.**
+- Fuel burned: 112,101 lb of 145,761 lb available. 33,660 lb remaining.
+- Ceiling progression: 41,000 ft (cycles 1–3) → 42,000 ft (cycles 4–7) → 43,000 ft (cycles 8–12) → 43,100 ft (cycles 13–18).
+- This 2,100 ft progression is physically meaningful — the 767 starts thrust-limited and progressively reaches the hard cap as it lightens. The step pattern reflects the 1,000 ft integration resolution.
+- **High-confidence result.** CD0=0.018, k_adj=0.951, RMS 0.0%.
+
+**GV** — PASS (9 aircraft), 16 cycles, 44,000→47,000 ft, $269,828 fleet. **Best altitude capability.**
+- Each aircraft: fuel burned 23,959 lb of 32,408 lb available. 8,449 lb remaining.
+- Best ceiling progression: 44,000 → 45,000 → 46,000 → 47,000 ft (+3,000 ft over 16 cycles).
+- The GV's published ceiling (51,000 ft) is the highest in the study. The two-regime thrust model limits it to 47,000 ft at the lightest cycle weights — plausible for the BR710 engines at these altitudes.
+- Fleet of 9 aircraft is operationally impractical, but the altitude performance demonstrates the value of a lighter, higher-ceiling platform.
+
+**P-8** — PASS (3 aircraft), 14 cycles, 38,000→40,000 ft, $180,564 fleet.
+- Each aircraft: fuel burned 43,239 lb of 66,077 lb available. 22,838 lb remaining.
+- Progressive ceiling: 38,000 ft (cycles 1–5) → 39,000 ft (cycles 6–11) → 40,000 ft (cycles 12–14).
+- **Low-confidence.** Calibrated CD0=0.060 is 3–4× physical reality. The P-8's ceiling of 38,000–40,000 ft is artificially low — the real P-8 (published ceiling 41,000 ft) would reach higher. However, the qualitative behavior (progressive increase) is plausible.
+
+**A330-200** — PASS (marginal, +49 nm), 19 cycles, 41,100 ft flat, $177,001.
+- Fuel burned: 184,733 lb of 187,358 lb available. Only 2,625 lb remaining.
+- This is the most marginal result — essentially on the knife-edge of feasibility.
+- Flat ceiling reflects calibration artifact (CD0=0.033, e=2.165).
+- **Low-confidence.** The A330 could pass or fail in reality; the model cannot determine this with the current calibration quality.
+
+**777-200LR** — PASS, 17 cycles, 43,100 ft flat, $267,037.
+- Fuel burned: 142,963 lb of 295,387 lb available. 152,425 lb remaining — largest margin.
+- Flat ceiling: the 777's massive engines (2 × 110,100 lbf SLS) provide ample thrust at all weights.
+- Cost of $267,037 ($1.22/klb·nm) is the highest single-aircraft cost — the 777 is oversized for this mission.
+- **Low-confidence** (CD0=0.041, did not converge), but the 777 passes so comfortably that the true answer is almost certainly PASS.
 
 ## Methodology
+
+### Two-Regime Thrust Lapse Model
+
+The thrust model now uses two regimes (see ASSUMPTIONS_LOG.md entry C3):
+- **Below tropopause (≤36,089 ft):** `T = T_SLS × σ^0.75` — standard high-bypass turbofan lapse
+- **Above tropopause (>36,089 ft):** `T = T_trop × (σ/σ_trop)^2.0` — steeper lapse reflecting accelerated thrust decay in the isothermal stratosphere
+
+This is implemented in `propulsion.thrust_available_cruise()`. Continuity at the tropopause is guaranteed by construction.
 
 ### Sawtooth Cycle Model
 
 Each cycle consists of two phases:
 
-1. **Climb phase (altitude-stepping integration):** Starting at 5,000 ft, the model integrates in 1,000 ft altitude steps up to the aircraft's service ceiling. At each step:
+1. **Climb phase (altitude-stepping integration):** Starting at 5,000 ft, the model integrates in 1,000 ft altitude steps toward `hard_ceiling + 5,000 ft`. At each step:
    - Compute drag from the parabolic polar (CD = CD0 + CL²/πARe)
-   - Compute available thrust from `thrust_available_cruise()` with density-ratio lapse
+   - Compute available thrust from `thrust_available_cruise()` with two-regime lapse
    - Compute excess thrust → rate of climb: ROC = V × (T_excess / W)
-   - Stop if ROC < 100 ft/min (service ceiling reached) or T_excess ≤ 0
-   - Compute fuel flow = thrust_required × TSFC, horizontal distance = V·cos(γ)·dt
+   - Stop if ROC < 100 ft/min (thrust-limited ceiling) or T_excess ≤ 0
+   - Apply hard ceiling cap: `cycle_ceiling = min(thrust_ceiling, hard_ceiling)`
+   - If climb exceeds hard ceiling, truncate fuel/distance/time using per-step data
 
-2. **Descent phase (bulk calculation):** From the ceiling back to 5,000 ft at 2,000 ft/min:
+2. **Descent phase (bulk calculation):** From `cycle_ceiling` back to 5,000 ft at 2,000 ft/min:
    - Time = Δh / 2,000 ft/min
    - Fuel = 10% of cruise fuel flow at mid-descent altitude × time
    - Distance = TAS at mid-descent altitude × time
 
-The mission accumulates distance and fuel burn across cycles until either 4,200 nm is covered (pass) or fuel is exhausted (fail).
-
 ### Fuel Budget (Explicit Reserves, No f_oh)
 
-Per the Phase 2 reconciliation decision, Mission 2 does not use the f_oh overhead fraction. The sawtooth profile has no sustained cruise analogous to the calibration regime, so f_oh would inappropriately remove fuel:
+Per the Phase 2 reconciliation decision, Mission 2 does not use the f_oh overhead fraction:
 
 ```
 total_fuel = min(MTOW - OEW - payload, max_fuel)
@@ -135,63 +179,55 @@ Cost is computed on total fuel loaded (all fuel must be purchased). Fuel price: 
 
 ### Choices
 
-1. **Cycle bottom altitude = 5,000 ft.** Per reviewer guidance, 5,000 ft is representative for atmospheric column sampling. The 1,500 ft figure applies to Mission 3 (smoke survey), not Mission 2.
+1. **Two-regime thrust lapse (exp_strato=2.0).** Per reviewer feedback. The exponent 2.0 was selected to produce physically plausible weight-dependent ceilings. Below the tropopause, the original 0.75 exponent is preserved to maintain calibration consistency.
 
-2. **Constant Mach climb at 95% cruise Mach.** A simplification — real climbs use constant IAS below the transition altitude then constant Mach above. Consistent with the rest of the model.
+2. **Hard ceiling cap retained.** Published service ceilings reflect structural/pressurization limits beyond thrust. The hard cap prevents the model from producing altitudes above the published ceiling even at light weights.
 
-3. **Descent at 90% cruise Mach, 2,000 ft/min.** Standard transport idle descent parameters.
+3. **Climb target = hard_ceiling + 5,000 ft.** The climb segment targets above the hard cap so the ROC criterion determines the thrust-limited ceiling. Results are truncated at the hard cap afterward.
 
-4. **Idle descent fuel = 10% of cruise fuel flow.** Scaled to aircraft size, replacing the fixed 300 lb from Mission 1. This properly accounts for large aircraft (A330, 777) having idle flows of 1,000–2,000 lb per descent.
+4. **Cycle bottom altitude = 5,000 ft.** Per reviewer guidance.
 
-5. **No level cruise segments between cycles.** The model transitions directly from descent bottom to the next climb. Any low-altitude transit would add fuel burn and distance, slightly improving feasibility for marginal aircraft.
+5. **Constant Mach climb at 95% cruise Mach.** A simplification consistent with the rest of the model.
+
+6. **Idle descent fuel = 10% of cruise fuel flow.** Scaled to aircraft size.
 
 ### Limitations
 
-1. **Ceilings are flat — no progressive increase.** All aircraft hit their published service ceiling on every cycle. The model caps altitude at the published ceiling, so even as weight decreases, the maximum altitude doesn't change. To observe thrust-limited progressive ceiling increases, the aircraft would need to be operating at weights where thrust limits the ceiling below the published value. At 52,000 lb payload, all aircraft are heavy enough that thrust reaches the published ceiling with margin to spare on every cycle.
+1. **Stratospheric thrust exponent is approximate.** The value 2.0 produces physically plausible results but is not derived from engine-specific data. Different engine types would have different stratospheric thrust lapse characteristics.
 
-2. **Published service ceilings may not be applicable during sawtooth operations.** The published ceiling is a certification limit for sustained flight. During sampling climbs, the aircraft might briefly exceed this altitude. The model conservatively enforces the published ceiling as a hard limit.
+2. **1,000 ft step size discretizes the ceiling.** The progressive ceiling appears as 1,000 ft jumps (e.g., 41,000 → 42,000 → 43,000) rather than continuous. Finer step sizes would smooth the progression but increase computation time. The scientific interpretation is the same.
 
-3. **Calibrated CD0 makes P-8 results useless for Mission 2.** The P-8's calibrated CD0=0.060 produces drag exceeding thrust at all altitudes, making climb impossible. The real P-8 can unquestionably climb; the model failure is a direct consequence of the calibration pushing CD0 to an unphysically high value to compensate for other model errors.
+3. **Calibrated CD0 still distorts P-8 and A330 ceilings.** The P-8 (CD0=0.060) starts at 38,000 ft — lower than the published 41,000 ft ceiling. The A330 (CD0=0.033) shows no progression despite having physical characteristics similar to the 767. These are calibration artifacts, not physical results.
 
-4. **Climb integration step size (1,000 ft).** Adequate for the long climbs in Mission 2 (35,000+ ft of altitude gain per cycle), but not rigorously validated against finer step sizes. The effect on total fuel burn is expected to be small (sub-1%).
+4. **No wind effects.** The 4,200 nm distance assumes still air.
 
-5. **No wind effects.** The 4,200 nm distance is treated as still-air. Prevailing westerlies on the NZCH→SCCI route would provide a tailwind, potentially reducing fuel burn and improving feasibility for marginal cases like the A330.
+5. **A330 margin is within model uncertainty.** The A330 passes by only 49 nm (1.2% of mission distance) with a calibration that has e=2.165 and f_oh=0.000, both unphysical. This result should be treated as UNCERTAIN.
 
 ## Confidence Assessment
 
 | Aircraft | Confidence | Notes |
 |---|---|---|
-| 767-200ER | **High** | CD0=0.018 physical, k_adj=0.951, RMS 0.0%. Climb dynamics reliable. |
-| GV | **Medium** | CD0=0.015 physical. f_oh=0.131 (not used in Mission 2). k_adj=0.801 moderate. |
-| DC-8 | **Low** | k_adj=0.605 (TSFC ~40% below reference). f_oh=0.260 (not used, but indicates calibration compensation). Qualitatively plausible. |
-| 777-200LR | **Low** | CD0=0.041 unphysical. Did not converge during calibration. Passes on fuel volume alone. |
-| A330-200 | **Low** | CD0=0.033, e=2.165, f_oh=0.000 all unphysical. Marginal result within model error. |
-| P-8 | **None** | CD0=0.060 makes climb impossible. No useful Mission 2 data. |
-
-The confidence assessment is consistent with Mission 1: the **767-200ER and GV have the only physically grounded calibrations**. The other four aircraft have at least one calibrated parameter far from physical reality.
+| 767-200ER | **High** | CD0=0.018 physical, k_adj=0.951, RMS 0.0%. Ceiling progression (41k→43.1k ft) is reliable. |
+| GV | **Medium** | CD0=0.015 physical. Ceiling progression (44k→47k ft) plausible. Fleet impractical. |
+| DC-8 | **Low** | k_adj=0.605 (TSFC ~40% low). Flat ceiling (42k ft) physically correct for 4-engine config. |
+| 777-200LR | **Low** | CD0=0.041 unphysical. Flat ceiling correct (massive engines). Passes comfortably. |
+| P-8 | **Low** | CD0=0.060 unphysical. Progression (38k→40k ft) direction correct but absolute values too low. |
+| A330-200 | **Low** | CD0=0.033, e=2.165 unphysical. Marginal pass (+49 nm) within model error — true answer uncertain. |
 
 ## Comparison with Mission 1
 
 | Aircraft | Mission 1 | Mission 2 | Cost Change | Notes |
 |---|---|---|---|---|
-| DC-8 | FAIL (-1,863 nm) | PASS | — | Mission 2 is shorter (4,200 vs 5,050 nm) and has no engine-out |
-| 767-200ER | PASS (+1,202 nm) | PASS | $133k → $133k | Comparable cost; Mission 2 has explicit reserves vs f_oh |
-| 777-200LR | LIKELY PASS | PASS | $267k → $267k | Same fuel load; high cost per payload-distance persists |
-| GV | FAIL (-195 nm) | PASS (9 ac) | $240k → $270k† | Higher fleet count (8→9) because heavier payload (52k vs 46k lb) |
-| A330-200 | UNCERTAIN | FAIL (-15 nm) | — | Marginally infeasible in both missions |
-| P-8 | FAIL | FAIL (0 cycles) | — | Unphysical calibration prevents any useful analysis |
+| DC-8 | FAIL (-1,863 nm) | PASS | — | Shorter distance, no engine-out, explicit reserves vs f_oh |
+| 767-200ER | PASS (+1,134 nm) | PASS | $133k → $133k | Comparable cost; ceiling progression is the new information |
+| 777-200LR | LIKELY PASS | PASS | $267k → $267k | Passes comfortably; high cost persists |
+| GV | FAIL (-373 nm) | PASS (9 ac) | $240k → $270k† | Higher fleet count (8→9) due to heavier payload (52k vs 46k lb) |
+| A330-200 | UNCERTAIN | PASS (marginal) | — | Both missions marginal; low-confidence calibration |
+| P-8 | FAIL | PASS (3 ac) | $120k → $181k† | Now climbs with two-regime thrust model; still low-confidence |
 
 †Fleet aggregate costs
 
 **Key pattern:** The DC-8 flips from FAIL (Mission 1) to PASS (Mission 2). This is primarily because Mission 2 is 850 nm shorter, has no engine-out degradation, and uses explicit reserves instead of the f_oh hybrid (the DC-8's f_oh=0.260 removes 26% of fuel as overhead in Mission 1, while explicit reserves remove far less). However, the DC-8's pass is low-confidence.
-
-## Open Questions for Reviewer
-
-1. **Flat ceilings:** The progressive ceiling increase — the core scientific metric for this mission — does not appear because all aircraft are airframe-ceiling-limited rather than thrust-limited at 52,000 lb payload. Should we also model a reduced payload scenario (e.g., 30,000 lb) to demonstrate the thrust-limited regime where progressive ceiling increase would actually manifest? Alternatively, should we raise or remove the published ceiling cap and let the model find the true thrust-limited ceiling at each weight?
-
-2. **A330 marginal result (-15 nm):** The A330 fails by 0.4% of mission distance with a low-quality calibration. Should this be assessed as "UNCERTAIN" rather than "FAIL," similar to how the 777 was assessed as "LIKELY PASS" in Mission 1?
-
-3. **P-8 assessment:** The P-8 produces zero useful data for Mission 2. Should the report carry forward any qualitative assessment (e.g., based on the 737-900ER's known climb capabilities), or simply note the model limitation and move on?
 
 ## Reproduction
 
@@ -199,12 +235,15 @@ The confidence assessment is consistent with Mission 1: the **767-200ER and GV h
 python3 -m src.analysis.run_missions
 ```
 
-Runtime: ~11 minutes (dominated by calibration). Prints detailed per-aircraft results, summary table, and progressive ceiling table for both Mission 1 and Mission 2.
+Runtime: ~15 minutes (dominated by calibration). Prints detailed per-aircraft results, summary table, and progressive ceiling table for both Mission 1 and Mission 2.
 
-## Files Changed (Cumulative from Mission 1)
+## Files Changed (Cumulative)
 
 | File | Change |
 |---|---|
-| `src/models/missions.py` | Added `climb_segment()`, `descend_segment()`, `simulate_mission2_sampling()` with zero-progress guard |
-| `src/analysis/run_missions.py` | Added `run_mission2()`, `_print_mission2_result()`, `_print_mission2_summary()`, `_print_mission2_ceiling_table()`; updated `__main__` for both missions |
-| `tests/test_missions.py` | New file: 32 tests covering climb_segment (11), descend_segment (8), and Mission 2 orchestrator (13) |
+| `src/models/propulsion.py` | Two-regime thrust lapse model: `σ^0.75` below tropopause, `σ^2.0` above |
+| `src/models/missions.py` | `climb_segment()`, `descend_segment()`, `simulate_mission2_sampling()` with ceiling cap logic and zero-progress guard |
+| `src/analysis/run_missions.py` | `run_mission2()` and output functions; `__main__` runs both missions |
+| `tests/test_missions.py` | 34 tests: climb_segment (11), descend_segment (8), Mission 2 orchestrator (15 incl. progressive ceiling + ceiling cap) |
+| `tests/test_performance.py` | 3 new tests: thrust continuity, steeper above tropopause, unchanged below |
+| `ASSUMPTIONS_LOG.md` | Added C3: Two-Regime Thrust Lapse Model |

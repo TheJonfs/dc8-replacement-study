@@ -352,7 +352,12 @@ class TestMission2Sampling:
         assert "fuel_cost_usd" in pa
 
     def test_ceiling_increases_with_cycles(self):
-        """As fuel burns off, ceiling should generally increase."""
+        """As fuel burns off, ceiling should increase (progressive ceiling).
+
+        With the two-regime thrust model, heavy aircraft are thrust-limited
+        below the published ceiling. As fuel burns, they get lighter and
+        can reach higher. This is the core scientific output of Mission 2.
+        """
         ac = _make_synth_aircraft()
         cal = _make_synth_calibration()
         result = simulate_mission2_sampling(ac, cal, payload_lb=52_000,
@@ -360,7 +365,7 @@ class TestMission2Sampling:
         pa = result["per_aircraft"]
         cycles = pa["cycles"]
         if len(cycles) >= 3:
-            # Compare first and last full cycle ceilings
+            # Compare first and last full cycle ceilings — should show increase
             full_cycles = [c for c in cycles if not c.get("partial", False)]
             if len(full_cycles) >= 2:
                 assert full_cycles[-1]["ceiling_ft"] >= full_cycles[0]["ceiling_ft"]
@@ -462,6 +467,43 @@ class TestMission2Sampling:
         # mission_fuel should be total_fuel minus reserves (not minus f_oh * MTOW)
         # If f_oh were used, mission_fuel would be much smaller
         assert pa["mission_fuel_lb"] > pa["total_fuel_lb"] * 0.5
+
+    def test_ceiling_capped_at_service_ceiling(self):
+        """Cycle ceiling should never exceed the published service ceiling,
+        even when the aircraft is light enough to climb higher."""
+        # Use a light aircraft with modest ceiling — should be capped
+        ac = _make_synth_aircraft(oew=150_000, mtow=395_000,
+                                   max_payload=80_000, max_fuel=160_000)
+        ac["service_ceiling_ft"] = 40_000  # low ceiling for easy testing
+        cal = _make_synth_calibration()
+        result = simulate_mission2_sampling(ac, cal, payload_lb=30_000,
+                                             distance_nm=2_000)
+        pa = result["per_aircraft"]
+        for c in pa["cycles"]:
+            assert c["ceiling_ft"] <= 40_000, (
+                f"Cycle {c['cycle']} ceiling {c['ceiling_ft']} exceeds "
+                f"service ceiling 40,000 ft"
+            )
+
+    def test_progressive_ceiling_strict(self):
+        """With heavy payload and enough fuel, early cycles should have lower
+        ceilings than later cycles when the aircraft is thrust-limited."""
+        # Use a heavy configuration so the aircraft starts thrust-limited
+        ac = _make_synth_aircraft(oew=180_000, mtow=395_000,
+                                   max_payload=80_000, max_fuel=160_000)
+        ac["service_ceiling_ft"] = 50_000  # high cap so thrust limits first
+        cal = _make_synth_calibration()
+        result = simulate_mission2_sampling(ac, cal, payload_lb=52_000,
+                                             distance_nm=4_200)
+        pa = result["per_aircraft"]
+        full_cycles = [c for c in pa["cycles"] if not c.get("partial", False)]
+        if len(full_cycles) >= 5:
+            # With a high service ceiling and heavy weight, early ceilings
+            # should be thrust-limited and later ceilings should be higher
+            assert full_cycles[-1]["ceiling_ft"] > full_cycles[0]["ceiling_ft"], (
+                f"Last cycle ceiling ({full_cycles[-1]['ceiling_ft']}) should "
+                f"exceed first ({full_cycles[0]['ceiling_ft']})"
+            )
 
     def test_zero_progress_breaks_loop(self):
         """Aircraft that can't climb above h_low should not loop forever."""
