@@ -221,6 +221,19 @@ The steeper exponent (2.0) was selected to produce physically plausible weight-d
 
 **Impact: Low.** The fuel consumed climbing to 1,500 ft is <0.1% of mission fuel for all aircraft.
 
+### F3. Mission-Sized Fuel Loading (Mission 3)
+**Assumption:** For Mission 3, the aircraft loads only enough fuel to complete the 8-hour endurance plus reserves, rather than filling the tanks to maximum capacity. The fuel load is computed iteratively because fuel weight affects drag which affects burn rate.
+
+**Rationale:** Missions 1 and 2 are range-constrained — more fuel means more range, and the aircraft need maximum fuel to cover the required distance. Mission 3 is time-constrained — the aircraft needs to loiter for 8 hours, not fly a specific distance. Loading maximum fuel would increase weight, increase drag, increase burn rate, and inflate the cost metric without operational benefit. No operator would fuel a 777 to 325,000 lb for an 8-hour loiter when 129,000 lb suffices.
+
+**Algorithm:** Start with an initial burn rate estimate at empty weight (lower bound). Iterate: add reserves to the mission fuel estimate, simulate endurance at that fuel load, adjust the estimate based on actual burn, and converge when successive total fuel values stabilize (within 50 lb). A 5% margin on mission fuel provides operational safety.
+
+**What we miss:**
+- Tactical fuel reserves for unexpected events (but the standard reserve policy already covers this)
+- The fact that operators might load extra fuel for flexibility (e.g., to extend the survey if conditions warrant)
+
+**Impact: High.** This is the most impactful assumption in Mission 3. Without it, the 777 loaded 325,300 lb and appeared to be the most expensive option ($4.45/klb·nm). With mission-sized fuel, it loads only 128,747 lb and drops to $1.76/klb·nm — a 60% cost reduction. The entire ranking changed: DC-8 < P-8 < 767 < 777 < GV < A330, vs. the original DC-8 < P-8 < 767 < GV < A330 < 777.
+
 ---
 
 ## G. Cost Assumptions

@@ -416,10 +416,11 @@ def _print_mission3_result(result):
     print(f"\n  Weight Breakdown:")
     print(f"    OEW:              {pa['oew_lb']:>12,.0f} lb")
     print(f"    Payload:          {pa['payload_lb']:>12,.0f} lb")
-    print(f"    Fuel loaded:      {pa['total_fuel_lb']:>12,.0f} lb")
+    print(f"    Fuel loaded:      {pa['total_fuel_lb']:>12,.0f} lb "
+          f"(of {pa['max_fuel_available_lb']:,.0f} max)")
     print(f"    Takeoff weight:   {pa['takeoff_weight_lb']:>12,.0f} lb")
 
-    print(f"\n  Fuel Budget (explicit reserves, no f_oh):")
+    print(f"\n  Fuel Budget (mission-sized, no f_oh):")
     print(f"    Reserve fuel:     {pa['reserve_fuel_lb']:>12,.0f} lb")
     print(f"    Mission fuel:     {pa['mission_fuel_lb']:>12,.0f} lb")
 
@@ -494,6 +495,7 @@ def _print_mission3_summary(results):
 
     print(f"\nNotes:")
     print(f"  - All aircraft fly at 250 KTAS (Mach ~0.38) at 1,500 ft AGL")
+    print(f"  - Fuel is mission-sized (iterative sizing for 8hr + reserves), not max capacity")
     print(f"  - Payload column shows per-aircraft payload (may be < 30,000 lb for fleet operations)")
     print(f"  - Cost and $/klb·nm show fleet aggregate for multi-aircraft entries")
     print(f"  - Avg FF = average fuel flow in lb/hr during mission")

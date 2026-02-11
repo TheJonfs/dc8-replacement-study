@@ -927,6 +927,112 @@ def simulate_mission2_sampling(ac, cal, payload_lb=52_000, distance_nm=4_200,
 # See ASSUMPTIONS_LOG.md entry F1.
 LOW_ALT_KTAS = 250.0
 
+# Convergence parameters for iterative fuel sizing
+_FUEL_ITER_MAX = 20        # max iterations
+_FUEL_ITER_TOL_LB = 50.0   # convergence tolerance in lb
+_FUEL_MARGIN_FACTOR = 1.05  # 5% margin on mission fuel for safety
+
+
+def _run_endurance(W_tow, mission_fuel, h_ft, mach, ac, CD0, AR, e,
+                   tsfc_ref, k_adj, duration_hr, n_steps):
+    """Run time-stepping endurance simulation at fixed altitude.
+
+    This is the inner loop of Mission 3, extracted so it can be called
+    repeatedly during iterative fuel sizing.
+
+    Args:
+        W_tow: Takeoff weight (OEW + payload + fuel) in lbf
+        mission_fuel: Fuel available for mission (total - reserves) in lbf
+        h_ft: Mission altitude in ft
+        mach: Mission Mach number
+        ac: Aircraft data dict (for wing_area_ft2)
+        CD0, AR, e: Aerodynamic parameters
+        tsfc_ref, k_adj: TSFC parameters
+        duration_hr: Target duration in hours
+        n_steps: Number of time integration steps
+
+    Returns:
+        dict with fuel_burned_lb, distance_nm, endurance_hr, steps list,
+        avg_fuel_flow_lbhr, fuel_remaining_lb
+    """
+    dt_hr = duration_hr / n_steps
+    W_current = W_tow
+    fuel_remaining = mission_fuel
+    total_fuel_burned = 0.0
+    total_distance_nm = 0.0
+    actual_endurance_hr = 0.0
+    steps = []
+
+    for step_num in range(n_steps):
+        conds = performance.cruise_conditions(
+            W_current, h_ft, mach,
+            ac["wing_area_ft2"], CD0, AR, e, tsfc_ref, k_adj
+        )
+
+        fuel_flow_lbhr = conds["drag_lbf"] * conds["tsfc"]
+        fuel_this_step = fuel_flow_lbhr * dt_hr
+
+        # Fuel exhaustion — partial step
+        if fuel_this_step > fuel_remaining:
+            partial_dt_hr = (fuel_remaining / fuel_flow_lbhr
+                             if fuel_flow_lbhr > 0 else 0)
+            partial_dist_nm = conds["V_ktas"] * partial_dt_hr
+            steps.append({
+                "step": step_num,
+                "time_start_hr": actual_endurance_hr,
+                "time_end_hr": actual_endurance_hr + partial_dt_hr,
+                "W_start_lb": W_current,
+                "W_end_lb": W_current - fuel_remaining,
+                "fuel_burned_lb": fuel_remaining,
+                "distance_nm": partial_dist_nm,
+                "fuel_flow_lbhr": fuel_flow_lbhr,
+                "altitude_ft": h_ft,
+                "mach": mach,
+                "V_ktas": conds["V_ktas"],
+                "CL": conds["CL"],
+                "CD": conds["CD"],
+                "L_D": conds["L_D"],
+            })
+            total_fuel_burned += fuel_remaining
+            total_distance_nm += partial_dist_nm
+            actual_endurance_hr += partial_dt_hr
+            fuel_remaining = 0.0
+            break
+
+        # Full step
+        dist_this_step = conds["V_ktas"] * dt_hr
+        steps.append({
+            "step": step_num,
+            "time_start_hr": actual_endurance_hr,
+            "time_end_hr": actual_endurance_hr + dt_hr,
+            "W_start_lb": W_current,
+            "W_end_lb": W_current - fuel_this_step,
+            "fuel_burned_lb": fuel_this_step,
+            "distance_nm": dist_this_step,
+            "fuel_flow_lbhr": fuel_flow_lbhr,
+            "altitude_ft": h_ft,
+            "mach": mach,
+            "V_ktas": conds["V_ktas"],
+            "CL": conds["CL"],
+            "CD": conds["CD"],
+            "L_D": conds["L_D"],
+        })
+        total_fuel_burned += fuel_this_step
+        total_distance_nm += dist_this_step
+        actual_endurance_hr += dt_hr
+        W_current -= fuel_this_step
+        fuel_remaining -= fuel_this_step
+
+    return {
+        "fuel_burned_lb": total_fuel_burned,
+        "distance_nm": total_distance_nm,
+        "endurance_hr": actual_endurance_hr,
+        "steps": steps,
+        "fuel_remaining_lb": max(fuel_remaining, 0),
+        "avg_fuel_flow_lbhr": (total_fuel_burned / actual_endurance_hr
+                               if actual_endurance_hr > 0 else 0),
+    }
+
 
 def simulate_mission3_low_altitude(ac, cal, payload_lb=30_000,
                                     duration_hr=8.0, h_mission_ft=1_500,
@@ -940,6 +1046,11 @@ def simulate_mission3_low_altitude(ac, cal, payload_lb=30_000,
     The aircraft cruises at fixed low altitude for the full mission duration.
     The primary question is whether the aircraft has enough fuel for 8 hours
     of low-altitude endurance. Distance covered is an output, not a target.
+
+    Fuel loading is mission-sized: the aircraft loads only enough fuel to
+    complete the 8-hour endurance plus reserves, not maximum fuel. This is
+    computed iteratively because fuel weight affects drag which affects burn
+    rate. See ASSUMPTIONS_LOG.md entry F3.
 
     Low-altitude cruise uses a reduced speed (250 KTAS / Mach ≈ 0.38) to
     stay within structural speed limits (VMO). Climb/descent to 1,500 ft is
@@ -973,119 +1084,151 @@ def simulate_mission3_low_altitude(ac, cal, payload_lb=30_000,
     else:
         n_aircraft = 1
 
-    # --- Step 2: Fuel available ---
-    fuel_available = min(ac["MTOW"] - ac["OEW"] - actual_payload, ac["max_fuel"])
-    if fuel_available <= 0:
-        return _infeasible_result(ac, cal, payload_lb, actual_payload, n_aircraft,
+    # --- Step 2: Maximum fuel capacity check ---
+    max_fuel_available = min(
+        ac["MTOW"] - ac["OEW"] - actual_payload, ac["max_fuel"]
+    )
+    if max_fuel_available <= 0:
+        return _infeasible_result(ac, cal, payload_lb, actual_payload,
+                                  n_aircraft,
                                   "Cannot carry payload within MTOW")
 
-    W_tow = ac["OEW"] + actual_payload + fuel_available
-
-    # --- Step 3: Fuel budget (explicit reserves, no f_oh) ---
+    # --- Step 3: Calibration parameters ---
     CD0 = cal["CD0"]
-    e = cal["e"]
+    e_oswald = cal["e"]
     k_adj = cal["k_adj"]
 
-    reserve_fuel = performance.compute_reserve_fuel(
-        fuel_available, ac, CD0, e, k_adj
-    )
-    mission_fuel = fuel_available - reserve_fuel
-    if mission_fuel <= 0:
-        return _infeasible_result(ac, cal, payload_lb, actual_payload, n_aircraft,
-                                  "No mission fuel after reserve deduction")
-
     # --- Step 4: Mission parameters ---
-    # Compute Mach number for LOW_ALT_KTAS at mission altitude
     a_mission = atmosphere.speed_of_sound(h_mission_ft)
     V_mission_fps = LOW_ALT_KTAS * NM_TO_FT / 3600.0
     mach_mission = V_mission_fps / a_mission
 
-    # --- Step 5: Time-stepping endurance simulation ---
-    dt_hr = duration_hr / n_steps
-    W_current = W_tow
-    fuel_remaining = mission_fuel
-    total_fuel_burned = 0.0
-    total_distance_nm = 0.0
-    actual_endurance_hr = 0.0
-    steps = []
-    fuel_exhausted = False
+    # --- Step 5: Iterative fuel sizing ---
+    # Goal: find the minimum fuel load that satisfies 8-hour endurance + reserves.
+    #
+    # The iteration is needed because fuel weight affects drag, which affects
+    # burn rate, which affects how much fuel is needed. We converge on the
+    # total fuel loaded.
+    #
+    # Algorithm:
+    # 1. Estimate burn rate at light weight (no fuel) → initial mission fuel
+    # 2. Add reserves → total fuel candidate
+    # 3. Simulate at that fuel load → actual burn
+    # 4. If feasible: next estimate = actual burn (+ margin)
+    #    If not feasible: scale up proportionally
+    # 5. Converge when successive total fuel values stabilize
 
-    for step_num in range(n_steps):
-        # Compute cruise conditions at current weight
-        conds = performance.cruise_conditions(
-            W_current, h_mission_ft, mach_mission,
-            ac["wing_area_ft2"], CD0, ac["aspect_ratio"], e,
-            ac["tsfc_cruise_ref"], k_adj
+    W_empty_with_payload = ac["OEW"] + actual_payload
+
+    # Initial estimate: burn rate at empty weight (lower bound on actual burn)
+    conds_light = performance.cruise_conditions(
+        W_empty_with_payload, h_mission_ft, mach_mission,
+        ac["wing_area_ft2"], CD0, ac["aspect_ratio"], e_oswald,
+        ac["tsfc_cruise_ref"], k_adj
+    )
+    initial_burn_rate = conds_light["drag_lbf"] * conds_light["tsfc"]
+    mission_fuel_est = initial_burn_rate * duration_hr * _FUEL_MARGIN_FACTOR
+
+    converged = False
+    prev_total_fuel = 0.0
+
+    for iteration in range(_FUEL_ITER_MAX):
+        # Build total fuel = mission estimate + reserves
+        # First get a reserve estimate for this fuel level
+        reserve_fuel = performance.compute_reserve_fuel(
+            mission_fuel_est * 1.2,  # rough total for reserve calc
+            ac, CD0, e_oswald, k_adj
         )
+        total_fuel_candidate = mission_fuel_est + reserve_fuel
 
-        # Fuel burn for this time step
-        fuel_flow_lbhr = conds["drag_lbf"] * conds["tsfc"]
-        fuel_this_step = fuel_flow_lbhr * dt_hr
+        # Cap at max fuel capacity
+        total_fuel_candidate = min(total_fuel_candidate, max_fuel_available)
 
-        # Check if fuel runs out during this step
-        if fuel_this_step > fuel_remaining:
-            # Partial step — compute how much time we can fly
-            partial_dt_hr = fuel_remaining / fuel_flow_lbhr if fuel_flow_lbhr > 0 else 0
-            partial_dist_nm = conds["V_ktas"] * partial_dt_hr
+        # Recompute reserves properly for the capped total
+        reserve_fuel = performance.compute_reserve_fuel(
+            total_fuel_candidate, ac, CD0, e_oswald, k_adj
+        )
+        mission_fuel_candidate = total_fuel_candidate - reserve_fuel
+        if mission_fuel_candidate <= 0:
+            return _infeasible_result(
+                ac, cal, payload_lb, actual_payload, n_aircraft,
+                "No mission fuel after reserve deduction"
+            )
 
-            steps.append({
-                "step": step_num,
-                "time_start_hr": actual_endurance_hr,
-                "time_end_hr": actual_endurance_hr + partial_dt_hr,
-                "W_start_lb": W_current,
-                "W_end_lb": W_current - fuel_remaining,
-                "fuel_burned_lb": fuel_remaining,
-                "distance_nm": partial_dist_nm,
-                "fuel_flow_lbhr": fuel_flow_lbhr,
-                "altitude_ft": h_mission_ft,
-                "mach": mach_mission,
-                "V_ktas": conds["V_ktas"],
-                "CL": conds["CL"],
-                "CD": conds["CD"],
-                "L_D": conds["L_D"],
-            })
-
-            total_fuel_burned += fuel_remaining
-            total_distance_nm += partial_dist_nm
-            actual_endurance_hr += partial_dt_hr
-            W_current -= fuel_remaining
-            fuel_remaining = 0.0
-            fuel_exhausted = True
+        # Check convergence: has total fuel stabilized?
+        if abs(total_fuel_candidate - prev_total_fuel) < _FUEL_ITER_TOL_LB:
+            # Run one final simulation at this fuel load
+            W_tow_candidate = W_empty_with_payload + total_fuel_candidate
+            sim = _run_endurance(
+                W_tow_candidate, mission_fuel_candidate,
+                h_mission_ft, mach_mission, ac, CD0, ac["aspect_ratio"],
+                e_oswald, ac["tsfc_cruise_ref"], k_adj, duration_hr, n_steps
+            )
+            converged = True
             break
 
-        # Full step
-        dist_this_step = conds["V_ktas"] * dt_hr
+        prev_total_fuel = total_fuel_candidate
 
-        steps.append({
-            "step": step_num,
-            "time_start_hr": actual_endurance_hr,
-            "time_end_hr": actual_endurance_hr + dt_hr,
-            "W_start_lb": W_current,
-            "W_end_lb": W_current - fuel_this_step,
-            "fuel_burned_lb": fuel_this_step,
-            "distance_nm": dist_this_step,
-            "fuel_flow_lbhr": fuel_flow_lbhr,
-            "altitude_ft": h_mission_ft,
-            "mach": mach_mission,
-            "V_ktas": conds["V_ktas"],
-            "CL": conds["CL"],
-            "CD": conds["CD"],
-            "L_D": conds["L_D"],
-        })
+        # Simulate endurance at this fuel load
+        W_tow_candidate = W_empty_with_payload + total_fuel_candidate
+        sim = _run_endurance(
+            W_tow_candidate, mission_fuel_candidate,
+            h_mission_ft, mach_mission, ac, CD0, ac["aspect_ratio"],
+            e_oswald, ac["tsfc_cruise_ref"], k_adj, duration_hr, n_steps
+        )
 
-        total_fuel_burned += fuel_this_step
-        total_distance_nm += dist_this_step
-        actual_endurance_hr += dt_hr
-        W_current -= fuel_this_step
-        fuel_remaining -= fuel_this_step
+        actual_burn = sim["fuel_burned_lb"]
+
+        if sim["endurance_hr"] >= duration_hr - 0.01:
+            # Feasible — tighten estimate to actual burn + small margin
+            mission_fuel_est = actual_burn * _FUEL_MARGIN_FACTOR
+        else:
+            # Not enough fuel — scale up
+            if actual_burn > 0 and sim["endurance_hr"] > 0:
+                scale = duration_hr / sim["endurance_hr"]
+                mission_fuel_est = actual_burn * scale * _FUEL_MARGIN_FACTOR
+            else:
+                mission_fuel_est *= 2.0
+
+        # Safety: don't exceed max capacity
+        reserve_check = performance.compute_reserve_fuel(
+            max_fuel_available, ac, CD0, e_oswald, k_adj
+        )
+        max_mission_fuel = max_fuel_available - reserve_check
+        if mission_fuel_est > max_mission_fuel:
+            mission_fuel_est = max_mission_fuel
+
+    # If not converged, use max fuel as fallback
+    if not converged:
+        total_fuel_candidate = max_fuel_available
+        reserve_fuel = performance.compute_reserve_fuel(
+            total_fuel_candidate, ac, CD0, e_oswald, k_adj
+        )
+        mission_fuel_candidate = total_fuel_candidate - reserve_fuel
+        W_tow_candidate = W_empty_with_payload + total_fuel_candidate
+        sim = _run_endurance(
+            W_tow_candidate, mission_fuel_candidate,
+            h_mission_ft, mach_mission, ac, CD0, ac["aspect_ratio"],
+            e_oswald, ac["tsfc_cruise_ref"], k_adj, duration_hr, n_steps
+        )
+
+    # Final values
+    fuel_loaded = total_fuel_candidate
+    W_tow = W_tow_candidate
+    mission_fuel = mission_fuel_candidate
+
+    total_fuel_burned = sim["fuel_burned_lb"]
+    total_distance_nm = sim["distance_nm"]
+    actual_endurance_hr = sim["endurance_hr"]
+    steps = sim["steps"]
+    fuel_remaining = sim["fuel_remaining_lb"]
 
     # --- Step 6: Feasibility ---
-    feasible = actual_endurance_hr >= duration_hr - 0.01  # small tolerance
+    feasible = actual_endurance_hr >= duration_hr - 0.01
 
     # --- Step 7: Fuel cost metrics ---
-    # Cost is on total fuel loaded (all must be purchased)
-    total_fuel_cost = fuel_cost(fuel_available)
-    # For endurance mission, the $/klb·nm metric uses actual distance covered
+    # Cost is on fuel loaded (all fuel must be purchased)
+    total_fuel_cost = fuel_cost(fuel_loaded)
     fuel_cost_metric = (
         total_fuel_cost / (actual_payload / 1000.0 * total_distance_nm)
         if actual_payload > 0 and total_distance_nm > 0 else float('inf')
@@ -1096,20 +1239,22 @@ def simulate_mission3_low_altitude(ac, cal, payload_lb=30_000,
         "takeoff_weight_lb": W_tow,
         "oew_lb": ac["OEW"],
         "payload_lb": actual_payload,
-        "total_fuel_lb": fuel_available,
+        "total_fuel_lb": fuel_loaded,
         "reserve_fuel_lb": reserve_fuel,
         "mission_fuel_lb": mission_fuel,
         "fuel_burned_lb": total_fuel_burned,
-        "fuel_remaining_lb": max(fuel_remaining, 0),
+        "fuel_remaining_lb": fuel_remaining,
         "endurance_hr": actual_endurance_hr,
         "distance_covered_nm": total_distance_nm,
         "altitude_ft": h_mission_ft,
         "mach": mach_mission,
         "V_ktas": LOW_ALT_KTAS,
-        "avg_fuel_flow_lbhr": total_fuel_burned / actual_endurance_hr if actual_endurance_hr > 0 else 0,
+        "avg_fuel_flow_lbhr": sim["avg_fuel_flow_lbhr"],
         "steps": steps,
         "fuel_cost_usd": total_fuel_cost,
         "fuel_cost_per_1000lb_nm": fuel_cost_metric,
+        "max_fuel_available_lb": max_fuel_available,
+        "fuel_sizing_converged": converged,
     }
 
     # --- Step 9: Fleet aggregate ---
@@ -1118,7 +1263,7 @@ def simulate_mission3_low_altitude(ac, cal, payload_lb=30_000,
         aggregate = {
             "n_aircraft": n_aircraft,
             "total_payload_lb": n_aircraft * actual_payload,
-            "total_fuel_lb": n_aircraft * fuel_available,
+            "total_fuel_lb": n_aircraft * fuel_loaded,
             "total_fuel_burned_lb": n_aircraft * total_fuel_burned,
             "total_fuel_cost_usd": fleet_fuel_cost,
             "fuel_cost_per_1000lb_nm": (
