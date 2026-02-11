@@ -12,20 +12,43 @@
 
 ## Summary of Results
 
-| Aircraft | Status | n_ac | Payload (lb) | Fuel (lb) | Range (nm) | Surplus (nm) | Fuel@Dest (lb) | Cost | $/klb·nm |
-|---|---|---|---|---|---|---|---|---|---|
-| **767-200ER** | **PASS** | 1 | 46,000 | 162,000 | 6,252 | +1,202 | 25,732 | $132,985 | $0.5725 |
-| 777-200LR | FAIL | 1 | 46,000 | 325,300 | 4,622 | -428 | — | $267,037 | $1.1495 |
-| GV | FAIL | 8 | 5,750 ea | 36,550 ea | 4,855 | -195 | — | $240,030† | $1.0333† |
-| A330-200 | FAIL | 1 | 46,000 | 221,619 | 3,741 | -1,309 | — | $181,926 | $0.7832 |
-| P-8 | FAIL | 2 | 23,000 ea | 73,320 ea | 3,276 | -1,774 | — | $120,376† | $0.5182† |
-| DC-8 | FAIL | 1 | 46,000 | 122,000 | 3,187 | -1,863 | — | $100,149 | $0.4311 |
+### Assessed Outcomes
+
+Engine-out results are only reliable for aircraft with physically-grounded calibrations (DC-8, GV, 767-200ER). For the P-8, A330, and 777, the calibrated CD0 makes single-engine flight impossible at all altitudes in the model — an unphysical artifact. Their engine-out status is assessed using engineering judgment rather than model output alone (see Altitude Investigation below).
+
+| Aircraft | Status | Confidence | n_ac | Fuel@Dest (lb) | Cost | $/klb·nm | Notes |
+|---|---|---|---|---|---|---|---|
+| **767-200ER** | **PASS** | **High** | 1 | 25,732 | $132,985 | $0.5725 | Engine-out modeled; result reliable |
+| 777-200LR | LIKELY PASS | Low | 1 | — | $267,037 | $1.1495 | Engine-out not reliably modeled (CD0 artifact); passes on range-payload envelope alone |
+| GV | FAIL (-195 nm) | Medium | 8 | — | $240,030† | $1.0333† | Engine-out modeled; result plausible |
+| A330-200 | UNCERTAIN | Low | 1 | — | $181,926 | $0.7832 | Engine-out not reliably modeled; normal-cruise calibration also poor |
+| P-8 | FAIL | Low | 2 | — | $120,376† | $0.5182† | Engine-out not reliably modeled; also range-limited |
+| DC-8 | FAIL (-1,863 nm) | Low | 1 | — | $100,149 | $0.4311 | Engine-out modeled (3/4 engines); range-limited regardless |
 
 †Fleet aggregate (cost and $/klb·nm are for the full fleet of n_ac aircraft)
 
-**Only the 767-200ER completes the mission.** It has the best cost efficiency ($0.57/klb·nm) and arrives with 25,732 lb of cruise fuel remaining at 5,050 nm — a substantial reserve.
+### Raw Model Output
 
-The 777-200LR, which passed in the initial analysis, now fails by 428 nm after lowering the engine-out altitude search floor from 25,000 ft to 10,000 ft. This revealed that the 777's calibrated model produces drag that exceeds single-engine thrust at all altitudes — an unphysical result driven by the calibrated CD0 of 0.041 (see Altitude Investigation below). **The 777 result should be treated as uncertain** — the real aircraft almost certainly completes this mission, but the model cannot confirm it.
+For reference, the raw model results before engineering assessment:
+
+| Aircraft | Range (nm) | Surplus (nm) | Payload (lb) | Fuel (lb) | EO Altitude |
+|---|---|---|---|---|---|
+| 767-200ER | 6,252 | +1,202 | 46,000 | 162,000 | 33,000–43,000 ft |
+| 777-200LR | 4,622 | -428 | 46,000 | 325,300 | 10,000 ft (floor) |
+| GV | 4,855 | -195 | 5,750 ea | 36,550 ea | 40,000–45,000 ft |
+| A330-200 | 3,741 | -1,309 | 46,000 | 221,619 | 10,000 ft (floor) |
+| P-8 | 3,276 | -1,774 | 23,000 ea | 73,320 ea | 10,000 ft (floor) |
+| DC-8 | 3,187 | -1,863 | 46,000 | 122,000 | 39,500–40,000 ft |
+
+### Key Takeaways
+
+**The 767-200ER is the only aircraft that demonstrably passes** with high model confidence. It has the best cost efficiency ($0.57/klb·nm) and arrives with 25,732 lb of cruise fuel remaining at 5,050 nm.
+
+**The 777-200LR likely passes in reality** — its range-payload diagram shows it can carry 46,000 lb well beyond 5,050 nm under normal cruise, and ETOPS-330 certification means the real aircraft can sustain single-engine cruise at reasonable altitudes. However, even if it passes, it costs twice as much as the 767 ($1.15 vs. $0.57/klb·nm).
+
+**The A330-200 result is unreliable in either direction** — both its engine-out and normal-cruise calibrations are poor (f_oh=0.000, e=2.165).
+
+**The DC-8 cannot complete this mission** at 46,000 lb payload, confirming the need for replacement on long-range missions. This mission was selected specifically because it stresses the DC-8's capability.
 
 ## Changes Since Initial Report
 
@@ -107,9 +130,9 @@ Aircraft with positive margins find their optimal engine-out altitude through th
 
 **DC-8** — Falls 1,863 nm short; expected result.
 - Highest f_oh (0.260) removes 84,582 lb of the 122,000 lb fuel load as overhead, leaving only 37,418 lb for cruise
-- Engine-out on 3 of 4 engines barely affects altitude (39,500–40,000 ft) — the four-engine configuration provides thrust redundancy that twins cannot match
+- Engine-out on 3 of 4 engines barely affects altitude (39,500–40,000 ft) — the four-engine configuration provides thrust redundancy that twins cannot match. The DC-8 has a thrust margin of +16,484 lb on three engines at 25,000 ft, while the 767 has only +2,008 lb on one engine. This is exactly the concern raised by scientists in the requirements interviews about twin-engine replacements, and the model captures it correctly despite the DC-8's other calibration issues.
 - This mission was selected specifically because it stresses the DC-8's capability; the DC-8 failing reinforces the case for replacement
-- Result is **low-confidence** due to extreme calibration compensation (k_adj=0.605)
+- Result is **low-confidence** for absolute numbers due to extreme calibration compensation (k_adj=0.605), but the engine-out qualitative behavior is trustworthy
 
 ## Methodology
 
@@ -158,20 +181,37 @@ Aircraft that cannot carry 46,000 lb payload (GV max payload = 5,750 lb, P-8 max
 
 ## Confidence Assessment
 
+### Mission 1 Confidence
+
 | Aircraft | Confidence | Notes |
 |---|---|---|
 | 767-200ER | **High** | CD0=0.018 physical, f_oh=0.030, k_adj=0.969, RMS 0.0%. Engine-out altitude realistic (33k–43k ft). |
 | GV | **Medium** | f_oh=0.131 somewhat high. Engine-out altitude realistic (40k–45k ft). |
-| 777-200LR | **Low** | CD0=0.041 unphysical. Engine-out forced to 10k ft floor. True result likely PASS but model cannot confirm. |
-| P-8 | **Low** | CD0=0.060 unphysical. Engine-out forced to 10k ft floor. |
-| A330-200 | **Low** | CD0=0.033, e>1, f_oh=0.000 all unphysical. Engine-out forced to 10k ft floor. |
-| DC-8 | **Low** | k_adj=0.605 (TSFC ~40% low), f_oh=0.260. Engine-out altitude realistic (3 of 4 engines). |
+| 777-200LR | **Low** | CD0=0.041 unphysical. Engine-out forced to 10k ft floor. Assessed as LIKELY PASS based on range-payload envelope and ETOPS certification. |
+| P-8 | **Low** | CD0=0.060 unphysical. Engine-out forced to 10k ft floor. Also range-limited. |
+| A330-200 | **Low** | CD0=0.033, e>1, f_oh=0.000 all unphysical. Engine-out and normal-cruise calibrations both poor. |
+| DC-8 | **Low** | k_adj=0.605 (TSFC ~40% low), f_oh=0.260. Engine-out qualitative behavior trustworthy (3/4 engines). |
 
-## Questions for Reviewer
+### Confidence Framework for Missions 2 and 3
 
-1. **777 engine-out handling:** The 777's calibrated CD0 makes engine-out cruise impossible at all altitudes. The result (-428 nm) is dominated by the 10,000 ft floor penalty. Options: (a) report as-is with strong caveats (current approach); (b) override engine-out altitude to a nominal value (e.g., 25,000 ft) for aircraft where thrust is never sufficient, to avoid the artificial low-altitude penalty; (c) accept that Mission 1 engine-out results are only reliable for aircraft with physically-grounded calibrations (DC-8, GV, 767). Which approach does the reviewer recommend?
+Per reviewer guidance, the calibration quality concern is **primarily specific to engine-out** but has secondary effects on all-engines operations:
 
-2. **Implication for Missions 2 and 3:** Missions 2 and 3 do not involve engine-out. The calibrated CD0 values will still affect cruise performance at normal operating altitudes with all engines, but the effect is much smaller because full thrust easily exceeds drag. Should we flag the same three aircraft (P-8, A330, 777) as low-confidence across all missions, or is the concern specific to engine-out?
+- **Engine-out (Mission 1 only):** The unphysical CD0 values make thrust-drag balance unresolvable. This is the most severe impact — the model produces physically impossible results (unable to sustain level flight).
+- **Climb-descend (Mission 2):** Climb rate and altitude ceiling depend on specific excess power (thrust minus drag). Unphysical CD0 will distort the altitude achieved at the top of each climb cycle, though the effect is moderated by full thrust being available.
+- **Low-altitude endurance (Mission 3):** Fuel burn rate at 1,500 ft depends directly on the drag model. Unphysical CD0 produces incorrect absolute fuel burn rates.
+- **Normal cruise (all missions):** During cruise with all engines, thrust far exceeds drag (typical T/D ratio 1.5–3×), so the altitude optimizer finds reasonable altitudes. The calibration works as a system (CD0, e, k_adj, f_oh together match published data) even though individual parameters are non-physical.
+
+**Recommendation adopted:** Flag P-8, A330, and 777 as lower confidence across all missions. Flag DC-8 as lower confidence due to TSFC/f_oh compensation. The **high-confidence results across all missions are the 767-200ER and GV** — the two most important aircraft for the study's conclusions.
+
+## Resolved Questions
+
+The following questions were raised in the initial report and resolved through reviewer feedback:
+
+1. **Reserve reporting (Q1):** Fuel-at-destination metric added. The 767 arrives with 25,732 lb cruise fuel at 5,050 nm.
+2. **777 altitude floor (Q2):** Floor lowered to 10,000 ft, revealing unphysical calibrated drag. Adopted option (c): engine-out results only reliable for physically-grounded calibrations. Status labels (LIKELY PASS, UNCERTAIN) used for affected aircraft.
+3. **A330 flagging (Q3):** "Low-confidence" note is sufficient. A330 not a leading candidate regardless.
+4. **GV near-feasibility (Q4):** Not worth quantifying. 8-aircraft fleet is operationally impractical regardless.
+5. **Mach reduction:** Noted as known simplification; secondary to altitude change.
 
 ## Reproduction
 
