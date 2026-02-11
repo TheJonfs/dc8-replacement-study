@@ -462,3 +462,16 @@ class TestMission2Sampling:
         # mission_fuel should be total_fuel minus reserves (not minus f_oh * MTOW)
         # If f_oh were used, mission_fuel would be much smaller
         assert pa["mission_fuel_lb"] > pa["total_fuel_lb"] * 0.5
+
+    def test_zero_progress_breaks_loop(self):
+        """Aircraft that can't climb above h_low should not loop forever."""
+        # Use extremely high CD0 so drag exceeds thrust at all altitudes
+        ac = _make_synth_aircraft()
+        cal = _make_synth_calibration()
+        cal["CD0"] = 0.20  # absurdly high — no climb possible
+        result = simulate_mission2_sampling(ac, cal, payload_lb=52_000,
+                                             distance_nm=4_200)
+        assert result["feasible"] is False
+        pa = result["per_aircraft"]
+        # Should have 0 cycles (broke out immediately), not 50
+        assert pa["n_cycles"] == 0

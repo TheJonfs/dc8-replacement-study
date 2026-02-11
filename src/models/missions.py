@@ -684,6 +684,13 @@ def simulate_mission2_sampling(ac, cal, payload_lb=52_000, distance_nm=4_200,
         climb_time = climb_result["time_hr"]
         cycle_ceiling = climb_result["ceiling_ft"]
 
+        # Zero-progress guard: if the aircraft can't climb above h_low
+        # (e.g., because calibrated CD0 is so high that drag exceeds
+        # thrust at all altitudes), the cycle produces zero distance
+        # and zero fuel burn. Break to avoid an infinite loop.
+        if climb_dist <= 0 and climb_fuel <= 0:
+            break
+
         # Check if climb exceeds remaining fuel
         if climb_fuel > fuel_remaining:
             # Partial climb — estimate fraction completed
