@@ -3,7 +3,7 @@
 Phase 2 implementation:
 - Mission 1: Long-range transport with engine-out (SCEL->KPMD)
 - Mission 2: Vertical atmospheric sampling (NZCH->SCCI)
-- Mission 3: Low-altitude smoke survey                    [not yet implemented]
+- Mission 3: Low-altitude smoke survey (Central US)
 
 Usage:
     python3 -m src.analysis.run_missions
@@ -20,7 +20,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from src.aircraft_data.loader import load_all_aircraft
 from src.analysis.run_calibration import run_all_calibrations
-from src.models.missions import simulate_mission1_engine_out, simulate_mission2_sampling
+from src.models.missions import (
+    simulate_mission1_engine_out,
+    simulate_mission2_sampling,
+    simulate_mission3_low_altitude,
+)
 from src.utils import fuel_cost
 
 # The six study candidates (not seven — 737-900ER is excluded)
@@ -361,6 +365,142 @@ def _print_mission2_ceiling_table(results):
     print()
 
 
+def run_mission3(all_ac, calibrations, verbose=True):
+    """Run Mission 3 (low-altitude endurance) for all study candidates.
+
+    Args:
+        all_ac: Aircraft data dict from load_all_aircraft()
+        calibrations: Calibration results dict from run_all_calibrations()
+        verbose: Print results to stdout
+
+    Returns:
+        dict keyed by designation -> mission result dict
+    """
+    results = {}
+    for designation in STUDY_CANDIDATES:
+        ac = all_ac[designation]
+        cal = calibrations[designation]
+        result = simulate_mission3_low_altitude(ac, cal)
+        results[designation] = result
+        if verbose:
+            _print_mission3_result(result)
+
+    if verbose:
+        _print_mission3_summary(results)
+
+    return results
+
+
+def _print_mission3_result(result):
+    """Print detailed Mission 3 result for a single aircraft."""
+    d = result["designation"]
+    name = result["aircraft_name"]
+    status = "FEASIBLE" if result["feasible"] else "INFEASIBLE"
+
+    print(f"\n{'='*80}")
+    print(f"  Mission 3: {name} ({d})")
+    print(f"  Status: {status}")
+    if result["infeasible_reason"]:
+        print(f"  Reason: {result['infeasible_reason']}")
+    print(f"{'='*80}")
+
+    if result["n_aircraft"] > 1:
+        print(f"  Fleet: {result['n_aircraft']} aircraft "
+              f"(max payload {result['payload_actual_lb']:,.0f} lb each, "
+              f"{result['payload_requested_lb']:,.0f} lb total)")
+
+    pa = result["per_aircraft"]
+    if pa is None:
+        return
+
+    print(f"\n  Weight Breakdown:")
+    print(f"    OEW:              {pa['oew_lb']:>12,.0f} lb")
+    print(f"    Payload:          {pa['payload_lb']:>12,.0f} lb")
+    print(f"    Fuel loaded:      {pa['total_fuel_lb']:>12,.0f} lb")
+    print(f"    Takeoff weight:   {pa['takeoff_weight_lb']:>12,.0f} lb")
+
+    print(f"\n  Fuel Budget (explicit reserves, no f_oh):")
+    print(f"    Reserve fuel:     {pa['reserve_fuel_lb']:>12,.0f} lb")
+    print(f"    Mission fuel:     {pa['mission_fuel_lb']:>12,.0f} lb")
+
+    print(f"\n  Mission Results:")
+    print(f"    Endurance:        {pa['endurance_hr']:>12.1f} hr (of 8.0 hr)")
+    print(f"    Distance covered: {pa['distance_covered_nm']:>12,.0f} nm")
+    print(f"    Altitude:         {pa['altitude_ft']:>12,.0f} ft")
+    print(f"    Speed:            {pa['V_ktas']:>12.0f} KTAS (Mach {pa['mach']:.3f})")
+    print(f"    Fuel burned:      {pa['fuel_burned_lb']:>12,.0f} lb")
+    print(f"    Fuel remaining:   {pa['fuel_remaining_lb']:>12,.0f} lb")
+    print(f"    Avg fuel flow:    {pa['avg_fuel_flow_lbhr']:>12,.0f} lb/hr")
+
+    # Show first and last step L/D for efficiency insight
+    steps = pa["steps"]
+    if steps:
+        print(f"\n  Aerodynamic Conditions at 1,500 ft:")
+        print(f"    Initial L/D:      {steps[0]['L_D']:>12.2f}")
+        print(f"    Initial CL:       {steps[0]['CL']:>12.4f}")
+        print(f"    Initial CD:       {steps[0]['CD']:>12.5f}")
+        if len(steps) > 1:
+            print(f"    Final L/D:        {steps[-1]['L_D']:>12.2f}")
+
+    print(f"\n  Cost:")
+    print(f"    Fuel cost:        ${pa['fuel_cost_usd']:>11,.0f}")
+    print(f"    Cost/1000lb·nm:   ${pa['fuel_cost_per_1000lb_nm']:>11.4f}")
+
+    if result["aggregate"]:
+        agg = result["aggregate"]
+        print(f"\n  Fleet Aggregate ({agg['n_aircraft']} aircraft):")
+        print(f"    Total payload:    {agg['total_payload_lb']:>12,.0f} lb")
+        print(f"    Total fuel:       {agg['total_fuel_lb']:>12,.0f} lb")
+        print(f"    Total fuel cost:  ${agg['total_fuel_cost_usd']:>11,.0f}")
+        print(f"    Cost/1000lb·nm:   ${agg['fuel_cost_per_1000lb_nm']:>11.4f}")
+
+
+def _print_mission3_summary(results):
+    """Print compact comparison table for Mission 3 across all aircraft."""
+    print(f"\n\n{'='*130}")
+    print("MISSION 3 SUMMARY: Low-Altitude Smoke Survey (8 hr, 30,000 lb, 1,500 ft)")
+    print(f"{'='*130}")
+    print(f"{'Aircraft':<12} {'Status':<8} {'n_ac':>4} {'Payload':>10} {'Fuel':>10} "
+          f"{'Endurance':>10} {'Distance':>10} {'Burned':>10} {'Avg FF':>10} "
+          f"{'Cost':>10} {'$/klb·nm':>10}")
+    print(f"{'-'*12} {'-'*8} {'-'*4} {'-'*10} {'-'*10} "
+          f"{'-'*10} {'-'*10} {'-'*10} {'-'*10} "
+          f"{'-'*10} {'-'*10}")
+
+    for d in STUDY_CANDIDATES:
+        r = results[d]
+        status = "OK" if r["feasible"] else "FAIL"
+        pa = r["per_aircraft"]
+
+        if pa is None:
+            print(f"{d:<12} {status:<8} {r['n_aircraft']:>4} "
+                  f"{'—':>10} {'—':>10} {'—':>10} {'—':>10} "
+                  f"{'—':>10} {'—':>10} {'—':>10} {'—':>10}")
+            continue
+
+        # Use aggregate cost metric if fleet > 1
+        if r["aggregate"]:
+            cost_display = r["aggregate"]["total_fuel_cost_usd"]
+            metric_display = r["aggregate"]["fuel_cost_per_1000lb_nm"]
+        else:
+            cost_display = pa["fuel_cost_usd"]
+            metric_display = pa["fuel_cost_per_1000lb_nm"]
+
+        print(f"{d:<12} {status:<8} {r['n_aircraft']:>4} "
+              f"{pa['payload_lb']:>10,.0f} {pa['total_fuel_lb']:>10,.0f} "
+              f"{pa['endurance_hr']:>10.1f} {pa['distance_covered_nm']:>10,.0f} "
+              f"{pa['fuel_burned_lb']:>10,.0f} {pa['avg_fuel_flow_lbhr']:>10,.0f} "
+              f"${cost_display:>9,.0f} ${metric_display:>9.4f}")
+
+    print(f"\nNotes:")
+    print(f"  - All aircraft fly at 250 KTAS (Mach ~0.38) at 1,500 ft AGL")
+    print(f"  - Payload column shows per-aircraft payload (may be < 30,000 lb for fleet operations)")
+    print(f"  - Cost and $/klb·nm show fleet aggregate for multi-aircraft entries")
+    print(f"  - Avg FF = average fuel flow in lb/hr during mission")
+    print(f"  - DC-8 fuel burn is artificially low (k_adj=0.605, ~40% underreporting)")
+    print()
+
+
 if __name__ == "__main__":
     print("Running calibrations (this may take several minutes)...")
     all_ac, calibrations = run_all_calibrations(verbose=False)
@@ -374,3 +514,8 @@ if __name__ == "__main__":
     print("MISSION 2: Vertical Atmospheric Sampling (NZCH → SCCI)")
     print("=" * 80)
     mission2_results = run_mission2(all_ac, calibrations, verbose=True)
+
+    print("\n" + "=" * 80)
+    print("MISSION 3: Low-Altitude Smoke Survey (Central US)")
+    print("=" * 80)
+    mission3_results = run_mission3(all_ac, calibrations, verbose=True)

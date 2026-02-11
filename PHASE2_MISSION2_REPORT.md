@@ -18,7 +18,7 @@
 
 | Aircraft | Status | Confidence | n_ac | Cycles | Init→Peak Ceil (ft) | Cost | $/klb·nm | Notes |
 |---|---|---|---|---|---|---|---|---|
-| **DC-8** | **PASS** | **Low** | 1 | 21 | 42,000→42,000 | $95,224 | $0.4360 | Flat ceiling — 4 engines provide ample thrust at all weights |
+| **DC-8** | **PASS** | **Low** | 1 | 21 | 42,000→42,000 | $95,224 | $0.4360 | Flat ceiling — likely calibration artifact (CD0=0.014 too low) |
 | **767-200ER** | **PASS** | **High** | 1 | 18 | 41,000→43,100 | $132,985 | $0.6089 | Progressive ceiling (+2,100 ft); best single-aircraft option |
 | **777-200LR** | **PASS** | **Low** | 1 | 17 | 43,100→43,100 | $267,037 | $1.2227 | Flat ceiling at hard cap — massive thrust overcomes weight |
 | GV | PASS | Medium | 9 | 16 | 44,000→47,000 | $269,828† | $1.2355† | Best progressive ceiling (+3,000 ft); fleet impractical |
@@ -40,7 +40,7 @@
 
 **The 767-200ER is the best single-aircraft solution.** It combines progressive ceiling increase (41,000→43,100 ft) with moderate cost ($0.61/klb·nm) and high model confidence. The GV reaches higher (47,000 ft) but requires 9 aircraft.
 
-**The DC-8 is the cheapest but its ceiling doesn't increase.** At $0.44/klb·nm the DC-8 has the lowest cost, but its 4-engine configuration has so much excess thrust that the ceiling is flat at 42,000 ft throughout. The DC-8 result is low-confidence due to k_adj=0.605 (TSFC ~40% below reference).
+**The DC-8 is the cheapest but its ceiling doesn't increase.** At $0.44/klb·nm the DC-8 has the lowest cost, but its ceiling is flat at 42,000 ft throughout. This is likely a calibration artifact: the DC-8's calibrated CD0=0.0141 is unrealistically low, so the model never creates a thrust deficit even at MTOW. The real DC-8 would likely show progressive ceiling increase. Low-confidence result (k_adj=0.605, TSFC ~40% below reference).
 
 **Scientists' top priority — "flying higher" — favors the GV and 767-200ER.** The GV reaches the highest altitudes (47,000 ft) and shows the most ceiling progression, but requires a 9-aircraft fleet. The 767-200ER is the only single-aircraft solution that offers meaningful progressive ceiling increase with high model confidence.
 
@@ -86,7 +86,7 @@ Aircraft fall into three categories:
 
 1. **Progressive ceiling (thrust-limited at heavy weight):** GV, 767-200ER, P-8. These aircraft cannot reach the published ceiling at MTOW. As fuel burns off, the ceiling rises 1,000 ft every few cycles until it converges on the hard cap. This is the physically correct and scientifically valuable behavior.
 
-2. **Flat ceiling at hard cap (thrust-sufficient):** DC-8, 777-200LR. These have enough excess thrust to reach the published ceiling even at MTOW. The DC-8 benefits from 4 engines (total SLS thrust ~88,000 lbf); the 777 benefits from massive engines (2 × 110,100 lbf SLS). Their ceilings are structurally/pressurization-limited, not thrust-limited.
+2. **Flat ceiling at hard cap (thrust-sufficient):** DC-8, 777-200LR. These have enough modeled thrust to reach the published ceiling even at MTOW. The 777's flat ceiling is physically plausible given its massive engines (2 × 110,100 lbf SLS). The DC-8's flat ceiling is likely a calibration artifact: its calibrated CD0=0.0141 is unrealistically low for a 4-engine transport, making drag artificially easy to overcome. The real DC-8 would likely show some progressive ceiling increase, but the model cannot capture this because the calibrated drag is too low to create a thrust deficit at any weight.
 
 3. **Flat ceiling (calibration artifact):** A330. The calibrated CD0=0.033 (unphysical) distorts the thrust-drag balance. The A330's real ceiling behavior is unknown.
 
@@ -94,7 +94,7 @@ Aircraft fall into three categories:
 
 **DC-8** — PASS, 21 cycles, 42,000 ft flat, $95,224.
 - Fuel burned: 60,896 lb of 106,197 lb available. 45,301 lb remaining.
-- The DC-8's 4-engine configuration provides redundant thrust for climbing. At 325,000 lb MTOW with 4× CFM56-2-C1 engines, excess thrust at 42,000 ft is still substantial.
+- The DC-8's flat ceiling is likely a calibration artifact rather than a physically correct result. The calibrated CD0=0.0141 is unrealistically low for a 4-engine transport (typical values are 0.020–0.030), which makes modeled drag artificially low and gives the engines more than enough thrust to reach the published ceiling at all weights. The real DC-8 would likely show some progressive ceiling increase similar to the 767-200ER.
 - Low-confidence: k_adj=0.605, f_oh=0.260 (not used here, but indicates heavy calibration compensation).
 
 **767-200ER** — PASS, 18 cycles, 41,000→43,100 ft, $132,985. **Best single-aircraft solution.**
@@ -209,7 +209,7 @@ Cost is computed on total fuel loaded (all fuel must be purchased). Fuel price: 
 |---|---|---|
 | 767-200ER | **High** | CD0=0.018 physical, k_adj=0.951, RMS 0.0%. Ceiling progression (41k→43.1k ft) is reliable. |
 | GV | **Medium** | CD0=0.015 physical. Ceiling progression (44k→47k ft) plausible. Fleet impractical. |
-| DC-8 | **Low** | k_adj=0.605 (TSFC ~40% low). Flat ceiling (42k ft) physically correct for 4-engine config. |
+| DC-8 | **Low** | k_adj=0.605 (TSFC ~40% low). Flat ceiling (42k ft) likely calibration artifact (CD0=0.014 too low), not physically correct. |
 | 777-200LR | **Low** | CD0=0.041 unphysical. Flat ceiling correct (massive engines). Passes comfortably. |
 | P-8 | **Low** | CD0=0.060 unphysical. Progression (38k→40k ft) direction correct but absolute values too low. |
 | A330-200 | **Low** | CD0=0.033, e=2.165 unphysical. Marginal pass (+49 nm) within model error — true answer uncertain. |

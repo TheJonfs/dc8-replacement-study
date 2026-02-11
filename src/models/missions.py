@@ -3,7 +3,7 @@
 Implements the three science missions from CLAUDE.md:
   Mission 1: Long-range transport with engine-out (SCEL -> KPMD)
   Mission 2: Vertical atmospheric sampling (NZCH -> SCCI)
-  Mission 3: Low-altitude smoke survey                      [not yet implemented]
+  Mission 3: Low-altitude smoke survey (Central US)
 
 Each mission function takes an aircraft data dict and calibration result dict,
 and returns a detailed result dict including fuel breakdown, go/no-go status,
@@ -910,6 +910,231 @@ def simulate_mission2_sampling(ac, cal, payload_lb=52_000, distance_nm=4_200,
         "infeasible_reason": (
             None if feasible else
             _determine_infeasibility(distance_covered, distance_nm, fuel_remaining)
+        ),
+        "aircraft_name": ac.get("name", designation),
+        "designation": designation,
+        "payload_requested_lb": payload_lb,
+        "payload_actual_lb": actual_payload,
+        "n_aircraft": n_aircraft,
+        "per_aircraft": per_aircraft,
+        "aggregate": aggregate,
+    }
+
+
+# --- Low-altitude speed constant ---
+# 250 KTAS is used for low-altitude endurance missions.
+# At 1,500 ft, this corresponds to Mach ≈ 0.38.
+# See ASSUMPTIONS_LOG.md entry F1.
+LOW_ALT_KTAS = 250.0
+
+
+def simulate_mission3_low_altitude(ac, cal, payload_lb=30_000,
+                                    duration_hr=8.0, h_mission_ft=1_500,
+                                    n_steps=40):
+    """Simulate Mission 3: Low-altitude smoke survey endurance mission.
+
+    Region: Central United States (Arkansas-Missouri area)
+    Duration: 8 hours, Payload: 30,000 lb, Altitude: ~1,500 ft AGL
+    Profile: Extended low-altitude cruise for forest fire particulate sampling.
+
+    The aircraft cruises at fixed low altitude for the full mission duration.
+    The primary question is whether the aircraft has enough fuel for 8 hours
+    of low-altitude endurance. Distance covered is an output, not a target.
+
+    Low-altitude cruise uses a reduced speed (250 KTAS / Mach ≈ 0.38) to
+    stay within structural speed limits (VMO). Climb/descent to 1,500 ft is
+    negligible and ignored.
+
+    Fuel budget: Explicit reserves only (no f_oh) — per
+    PHASE2_STEP1_RECONCILIATION.md.
+
+    For aircraft that cannot carry the full payload (GV, P-8), computes
+    fleet sizing and aggregate costs.
+
+    Args:
+        ac: Normalized aircraft data dict from loader
+        cal: Calibration result dict (CD0, e, k_adj, etc.)
+        payload_lb: Required total payload in lbf (default 30,000)
+        duration_hr: Mission duration in hours (default 8.0)
+        h_mission_ft: Mission altitude in ft AGL (default 1,500)
+        n_steps: Number of time integration steps (default 40)
+
+    Returns:
+        dict with feasibility, per-aircraft results, fleet aggregate,
+        and time-series data for plotting.
+    """
+    designation = ac["designation"]
+
+    # --- Step 1: Fleet sizing ---
+    actual_payload = min(payload_lb, ac["max_payload"])
+    if actual_payload < payload_lb:
+        n_aircraft = math.ceil(payload_lb / ac["max_payload"])
+        actual_payload = payload_lb / n_aircraft
+    else:
+        n_aircraft = 1
+
+    # --- Step 2: Fuel available ---
+    fuel_available = min(ac["MTOW"] - ac["OEW"] - actual_payload, ac["max_fuel"])
+    if fuel_available <= 0:
+        return _infeasible_result(ac, cal, payload_lb, actual_payload, n_aircraft,
+                                  "Cannot carry payload within MTOW")
+
+    W_tow = ac["OEW"] + actual_payload + fuel_available
+
+    # --- Step 3: Fuel budget (explicit reserves, no f_oh) ---
+    CD0 = cal["CD0"]
+    e = cal["e"]
+    k_adj = cal["k_adj"]
+
+    reserve_fuel = performance.compute_reserve_fuel(
+        fuel_available, ac, CD0, e, k_adj
+    )
+    mission_fuel = fuel_available - reserve_fuel
+    if mission_fuel <= 0:
+        return _infeasible_result(ac, cal, payload_lb, actual_payload, n_aircraft,
+                                  "No mission fuel after reserve deduction")
+
+    # --- Step 4: Mission parameters ---
+    # Compute Mach number for LOW_ALT_KTAS at mission altitude
+    a_mission = atmosphere.speed_of_sound(h_mission_ft)
+    V_mission_fps = LOW_ALT_KTAS * NM_TO_FT / 3600.0
+    mach_mission = V_mission_fps / a_mission
+
+    # --- Step 5: Time-stepping endurance simulation ---
+    dt_hr = duration_hr / n_steps
+    W_current = W_tow
+    fuel_remaining = mission_fuel
+    total_fuel_burned = 0.0
+    total_distance_nm = 0.0
+    actual_endurance_hr = 0.0
+    steps = []
+    fuel_exhausted = False
+
+    for step_num in range(n_steps):
+        # Compute cruise conditions at current weight
+        conds = performance.cruise_conditions(
+            W_current, h_mission_ft, mach_mission,
+            ac["wing_area_ft2"], CD0, ac["aspect_ratio"], e,
+            ac["tsfc_cruise_ref"], k_adj
+        )
+
+        # Fuel burn for this time step
+        fuel_flow_lbhr = conds["drag_lbf"] * conds["tsfc"]
+        fuel_this_step = fuel_flow_lbhr * dt_hr
+
+        # Check if fuel runs out during this step
+        if fuel_this_step > fuel_remaining:
+            # Partial step — compute how much time we can fly
+            partial_dt_hr = fuel_remaining / fuel_flow_lbhr if fuel_flow_lbhr > 0 else 0
+            partial_dist_nm = conds["V_ktas"] * partial_dt_hr
+
+            steps.append({
+                "step": step_num,
+                "time_start_hr": actual_endurance_hr,
+                "time_end_hr": actual_endurance_hr + partial_dt_hr,
+                "W_start_lb": W_current,
+                "W_end_lb": W_current - fuel_remaining,
+                "fuel_burned_lb": fuel_remaining,
+                "distance_nm": partial_dist_nm,
+                "fuel_flow_lbhr": fuel_flow_lbhr,
+                "altitude_ft": h_mission_ft,
+                "mach": mach_mission,
+                "V_ktas": conds["V_ktas"],
+                "CL": conds["CL"],
+                "CD": conds["CD"],
+                "L_D": conds["L_D"],
+            })
+
+            total_fuel_burned += fuel_remaining
+            total_distance_nm += partial_dist_nm
+            actual_endurance_hr += partial_dt_hr
+            W_current -= fuel_remaining
+            fuel_remaining = 0.0
+            fuel_exhausted = True
+            break
+
+        # Full step
+        dist_this_step = conds["V_ktas"] * dt_hr
+
+        steps.append({
+            "step": step_num,
+            "time_start_hr": actual_endurance_hr,
+            "time_end_hr": actual_endurance_hr + dt_hr,
+            "W_start_lb": W_current,
+            "W_end_lb": W_current - fuel_this_step,
+            "fuel_burned_lb": fuel_this_step,
+            "distance_nm": dist_this_step,
+            "fuel_flow_lbhr": fuel_flow_lbhr,
+            "altitude_ft": h_mission_ft,
+            "mach": mach_mission,
+            "V_ktas": conds["V_ktas"],
+            "CL": conds["CL"],
+            "CD": conds["CD"],
+            "L_D": conds["L_D"],
+        })
+
+        total_fuel_burned += fuel_this_step
+        total_distance_nm += dist_this_step
+        actual_endurance_hr += dt_hr
+        W_current -= fuel_this_step
+        fuel_remaining -= fuel_this_step
+
+    # --- Step 6: Feasibility ---
+    feasible = actual_endurance_hr >= duration_hr - 0.01  # small tolerance
+
+    # --- Step 7: Fuel cost metrics ---
+    # Cost is on total fuel loaded (all must be purchased)
+    total_fuel_cost = fuel_cost(fuel_available)
+    # For endurance mission, the $/klb·nm metric uses actual distance covered
+    fuel_cost_metric = (
+        total_fuel_cost / (actual_payload / 1000.0 * total_distance_nm)
+        if actual_payload > 0 and total_distance_nm > 0 else float('inf')
+    )
+
+    # --- Step 8: Assemble per-aircraft result ---
+    per_aircraft = {
+        "takeoff_weight_lb": W_tow,
+        "oew_lb": ac["OEW"],
+        "payload_lb": actual_payload,
+        "total_fuel_lb": fuel_available,
+        "reserve_fuel_lb": reserve_fuel,
+        "mission_fuel_lb": mission_fuel,
+        "fuel_burned_lb": total_fuel_burned,
+        "fuel_remaining_lb": max(fuel_remaining, 0),
+        "endurance_hr": actual_endurance_hr,
+        "distance_covered_nm": total_distance_nm,
+        "altitude_ft": h_mission_ft,
+        "mach": mach_mission,
+        "V_ktas": LOW_ALT_KTAS,
+        "avg_fuel_flow_lbhr": total_fuel_burned / actual_endurance_hr if actual_endurance_hr > 0 else 0,
+        "steps": steps,
+        "fuel_cost_usd": total_fuel_cost,
+        "fuel_cost_per_1000lb_nm": fuel_cost_metric,
+    }
+
+    # --- Step 9: Fleet aggregate ---
+    if n_aircraft > 1:
+        fleet_fuel_cost = n_aircraft * total_fuel_cost
+        aggregate = {
+            "n_aircraft": n_aircraft,
+            "total_payload_lb": n_aircraft * actual_payload,
+            "total_fuel_lb": n_aircraft * fuel_available,
+            "total_fuel_burned_lb": n_aircraft * total_fuel_burned,
+            "total_fuel_cost_usd": fleet_fuel_cost,
+            "fuel_cost_per_1000lb_nm": (
+                fleet_fuel_cost / (payload_lb / 1000.0 * total_distance_nm)
+                if payload_lb > 0 and total_distance_nm > 0 else float('inf')
+            ),
+        }
+    else:
+        aggregate = None
+
+    return {
+        "feasible": feasible,
+        "infeasible_reason": (
+            None if feasible else
+            f"Fuel exhausted after {actual_endurance_hr:.1f} hr "
+            f"(required {duration_hr:.1f} hr)"
         ),
         "aircraft_name": ac.get("name", designation),
         "designation": designation,
