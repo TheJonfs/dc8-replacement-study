@@ -202,7 +202,24 @@ The steeper exponent (2.0) was selected to produce physically plausible weight-d
 
 ## F. Mission-Specific Assumptions
 
-(To be populated as we model each mission)
+### F1. Mission 3 Low-Altitude Speed
+**Assumption:** All aircraft fly at 250 KTAS (Mach ≈ 0.38 at 1,500 ft) during Mission 3. This is a single speed for all aircraft types.
+
+**Rationale:** At 1,500 ft, the air density is ~96% of sea level. Flying at normal cruise Mach (0.75–0.85) would produce TAS of 500–530 KTAS, which exceeds VMO for all study aircraft (~340–365 KCAS). A realistic low-altitude cruise speed is 250–300 KTAS. We use 250 KTAS as a conservative choice that is below all VMO limits and consistent with the hold speed assumption in the reserve fuel model.
+
+**What we miss:**
+- Aircraft-specific optimal endurance speeds (each aircraft has a different L/D profile vs. speed)
+- Speed variations during the survey pattern (turns, course changes)
+- The actual survey speed would depend on instrument requirements
+
+**Impact: Medium.** Speed affects both fuel burn rate and distance covered. At 250 KTAS, the drag is dominated by CD0 (parasite drag) because CL is low in dense air. A faster speed would increase parasite drag quadratically while barely changing induced drag. All aircraft are compared at the same speed, so relative rankings are preserved.
+
+### F2. Negligible Climb/Descent to Mission Altitude
+**Assumption:** Climb from the departure airport to 1,500 ft AGL and descent back are ignored. All mission fuel is allocated to low-altitude endurance.
+
+**Rationale:** 1,500 ft is essentially traffic pattern altitude. Climbing to 1,500 ft consumes ~50–100 lb of fuel and takes under 1 minute — negligible compared to 8 hours of endurance burning thousands of pounds per hour.
+
+**Impact: Low.** The fuel consumed climbing to 1,500 ft is <0.1% of mission fuel for all aircraft.
 
 ---
 

@@ -1,14 +1,18 @@
 """Tests for mission simulation functions.
 
-Tests climb_segment(), descend_segment(), and simulate_mission2_sampling()
-using synthetic aircraft parameters for fast execution (no calibration needed).
+Tests climb_segment(), descend_segment(), simulate_mission2_sampling(),
+and simulate_mission3_low_altitude() using synthetic aircraft parameters
+for fast execution (no calibration needed).
 """
 import sys
 sys.path.insert(0, '.')
 
 import pytest
 import math
-from src.models.missions import climb_segment, descend_segment, simulate_mission2_sampling
+from src.models.missions import (
+    climb_segment, descend_segment,
+    simulate_mission2_sampling, simulate_mission3_low_altitude,
+)
 
 
 # --- Synthetic aircraft parameters for testing ---
@@ -517,3 +521,100 @@ class TestMission2Sampling:
         pa = result["per_aircraft"]
         # Should have 0 cycles (broke out immediately), not 50
         assert pa["n_cycles"] == 0
+
+
+class TestMission3LowAltitude:
+    """Tests for simulate_mission3_low_altitude()."""
+
+    def test_basic_feasibility(self):
+        """A well-configured aircraft should complete 8 hours at low altitude."""
+        ac = _make_synth_aircraft()
+        cal = _make_synth_calibration()
+        result = simulate_mission3_low_altitude(ac, cal, payload_lb=30_000,
+                                                 duration_hr=8.0)
+        assert result["feasible"] is True
+        pa = result["per_aircraft"]
+        assert pa["endurance_hr"] >= 8.0 - 0.01
+        assert pa["distance_covered_nm"] > 0
+        assert pa["fuel_burned_lb"] > 0
+
+    def test_returns_expected_keys(self):
+        ac = _make_synth_aircraft()
+        cal = _make_synth_calibration()
+        result = simulate_mission3_low_altitude(ac, cal)
+        assert "feasible" in result
+        assert "per_aircraft" in result
+        pa = result["per_aircraft"]
+        expected_keys = [
+            "takeoff_weight_lb", "oew_lb", "payload_lb",
+            "total_fuel_lb", "reserve_fuel_lb", "mission_fuel_lb",
+            "fuel_burned_lb", "fuel_remaining_lb",
+            "endurance_hr", "distance_covered_nm",
+            "altitude_ft", "mach", "V_ktas",
+            "avg_fuel_flow_lbhr", "steps",
+            "fuel_cost_usd", "fuel_cost_per_1000lb_nm",
+        ]
+        for key in expected_keys:
+            assert key in pa, f"Missing key: {key}"
+
+    def test_fleet_sizing_for_small_aircraft(self):
+        """Aircraft with max payload < 30,000 lb need a fleet."""
+        ac = _make_synth_aircraft(max_payload=10_000)
+        cal = _make_synth_calibration()
+        result = simulate_mission3_low_altitude(ac, cal, payload_lb=30_000)
+        assert result["n_aircraft"] == 3
+        assert result["payload_actual_lb"] == pytest.approx(10_000, abs=1)
+        assert result["aggregate"] is not None
+        assert result["aggregate"]["n_aircraft"] == 3
+
+    def test_fuel_increases_with_duration(self):
+        """Longer endurance requires more fuel."""
+        ac = _make_synth_aircraft()
+        cal = _make_synth_calibration()
+        r4 = simulate_mission3_low_altitude(ac, cal, duration_hr=4.0)
+        r8 = simulate_mission3_low_altitude(ac, cal, duration_hr=8.0)
+        assert (r8["per_aircraft"]["fuel_burned_lb"]
+                > r4["per_aircraft"]["fuel_burned_lb"])
+
+    def test_distance_positive_and_reasonable(self):
+        """Should cover significant distance in 8 hours at 250 KTAS."""
+        ac = _make_synth_aircraft()
+        cal = _make_synth_calibration()
+        result = simulate_mission3_low_altitude(ac, cal, duration_hr=8.0)
+        pa = result["per_aircraft"]
+        # At 250 KTAS for 8 hours, distance should be ~2,000 nm
+        assert pa["distance_covered_nm"] > 1_500
+        assert pa["distance_covered_nm"] < 2_500
+
+    def test_endurance_decreases_with_payload(self):
+        """Heavier payload means less fuel, shorter endurance (or more burned)."""
+        ac = _make_synth_aircraft()
+        cal = _make_synth_calibration()
+        # Very light payload — lots of fuel
+        r_light = simulate_mission3_low_altitude(ac, cal, payload_lb=10_000,
+                                                   duration_hr=8.0)
+        # Heavy payload — less fuel available
+        r_heavy = simulate_mission3_low_altitude(ac, cal, payload_lb=70_000,
+                                                   duration_hr=8.0)
+        # Light aircraft should burn less fuel per hour
+        assert (r_light["per_aircraft"]["avg_fuel_flow_lbhr"]
+                < r_heavy["per_aircraft"]["avg_fuel_flow_lbhr"])
+
+    def test_altitude_is_mission_altitude(self):
+        """All steps should be at the mission altitude."""
+        ac = _make_synth_aircraft()
+        cal = _make_synth_calibration()
+        result = simulate_mission3_low_altitude(ac, cal, h_mission_ft=1_500)
+        pa = result["per_aircraft"]
+        for step in pa["steps"]:
+            assert step["altitude_ft"] == 1_500
+
+    def test_infeasible_when_fuel_limited(self):
+        """Aircraft with very little fuel should not endure 8 hours."""
+        ac = _make_synth_aircraft(max_fuel=5_000)
+        cal = _make_synth_calibration()
+        result = simulate_mission3_low_altitude(ac, cal, payload_lb=30_000,
+                                                 duration_hr=8.0)
+        assert result["feasible"] is False
+        pa = result["per_aircraft"]
+        assert pa["endurance_hr"] < 8.0
