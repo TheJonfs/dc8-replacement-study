@@ -2,7 +2,7 @@
 
 Implements the three science missions from CLAUDE.md:
   Mission 1: Long-range transport with engine-out (SCEL -> KPMD)
-  Mission 2: Vertical atmospheric sampling (NZCH -> SCCI)  [not yet implemented]
+  Mission 2: Vertical atmospheric sampling (NZCH -> SCCI)
   Mission 3: Low-altitude smoke survey                      [not yet implemented]
 
 Each mission function takes an aircraft data dict and calibration result dict,
@@ -16,9 +16,219 @@ Fuel budget approach (from PHASE2_STEP1_RECONCILIATION.md):
 """
 
 import math
-from src.models import performance, aerodynamics
+from src.models import atmosphere, performance, aerodynamics, propulsion
 from src.models.calibration import CLIMB_DISTANCE_NM, DESCENT_DISTANCE_NM
-from src.utils import fuel_cost
+from src.utils import fuel_cost, NM_TO_FT, FT_TO_NM
+
+
+def climb_segment(W_start_lb, h_start_ft, h_target_ft, mach_climb,
+                   wing_area_ft2, CD0, AR, e, tsfc_ref, k_adj,
+                   thrust_slst_lbf, n_engines, h_step_ft=1000,
+                   roc_min_fpm=100.0):
+    """Compute fuel, distance, and time for a climb between two altitudes.
+
+    Uses altitude-stepping integration. At each step:
+    - Compute drag at current altitude/weight/Mach
+    - Compute thrust available
+    - Compute excess thrust -> rate of climb
+    - If ROC < roc_min_fpm, the aircraft has reached its service ceiling
+    - Compute fuel flow, time for step, distance covered
+    - Update weight
+
+    Args:
+        W_start_lb: Aircraft weight at start of climb (lbf)
+        h_start_ft: Starting altitude (ft)
+        h_target_ft: Target altitude (ft); climb stops earlier if ceiling reached
+        mach_climb: Mach number during climb (constant Mach assumption)
+        wing_area_ft2: Wing reference area (ft^2)
+        CD0: Zero-lift drag coefficient (calibrated)
+        AR: Wing aspect ratio
+        e: Oswald span efficiency factor (calibrated)
+        tsfc_ref: Reference cruise TSFC [lb/(lbf-hr)]
+        k_adj: TSFC calibration adjustment factor
+        thrust_slst_lbf: Sea-level static thrust per engine (lbf)
+        n_engines: Number of operating engines
+        h_step_ft: Altitude integration step size (ft, default 1000)
+        roc_min_fpm: Minimum ROC for service ceiling definition (ft/min, default 100)
+
+    Returns:
+        dict with:
+            fuel_burned_lb: Total fuel consumed during climb
+            distance_nm: Horizontal distance covered during climb
+            time_hr: Total climb time in hours
+            ceiling_ft: Actual ceiling achieved (may be < h_target_ft)
+            steps: List of per-step dicts for plotting/analysis
+            ceiling_limited: True if climb stopped before h_target_ft
+    """
+    if h_start_ft >= h_target_ft:
+        return {
+            "fuel_burned_lb": 0.0,
+            "distance_nm": 0.0,
+            "time_hr": 0.0,
+            "ceiling_ft": h_start_ft,
+            "steps": [],
+            "ceiling_limited": False,
+        }
+
+    total_fuel = 0.0
+    total_distance_nm = 0.0
+    total_time_hr = 0.0
+    W_current = W_start_lb
+    h_current = h_start_ft
+    steps = []
+    ceiling_limited = False
+
+    while h_current < h_target_ft:
+        # Altitude step (may be partial at the top)
+        dh = min(h_step_ft, h_target_ft - h_current)
+        h_mid = h_current + dh / 2.0
+
+        # Atmospheric conditions at midpoint
+        a_mid = atmosphere.speed_of_sound(h_mid)
+        V_fps = mach_climb * a_mid
+        rho_mid = atmosphere.density(h_mid)
+        q_mid = 0.5 * rho_mid * V_fps ** 2
+
+        # Aerodynamics at current weight and midpoint altitude
+        CL = aerodynamics.lift_coefficient(W_current, q_mid, wing_area_ft2)
+        CD = aerodynamics.drag_coefficient(CL, CD0, AR, e)
+        drag_lbf = CD * q_mid * wing_area_ft2
+
+        # Thrust available at midpoint altitude
+        thrust_avail = propulsion.thrust_available_cruise(
+            thrust_slst_lbf, h_mid, n_engines
+        )
+
+        # Excess thrust -> climb capability
+        excess_thrust = thrust_avail - drag_lbf
+        if excess_thrust <= 0:
+            ceiling_limited = True
+            break
+
+        # Rate of climb: ROC = V * (T_excess / W)
+        # sin(gamma) = T_excess / W, ROC = V * sin(gamma)
+        sin_gamma = excess_thrust / W_current
+        roc_fps = V_fps * sin_gamma
+        roc_fpm = roc_fps * 60.0
+
+        if roc_fpm < roc_min_fpm:
+            ceiling_limited = True
+            break
+
+        # Time for this altitude step
+        dt_sec = dh / roc_fps
+        dt_hr = dt_sec / 3600.0
+
+        # Fuel burn: thrust_required * TSFC * time
+        # During climb, thrust ~ drag + W * sin(gamma) = thrust_avail
+        # But we use a more accurate formulation: the engine produces
+        # thrust equal to drag + climb component
+        thrust_required = drag_lbf + W_current * sin_gamma
+        tsfc_val = propulsion.tsfc(h_mid, mach_climb, tsfc_ref, k_adj)
+        fuel_flow_lbhr = thrust_required * tsfc_val
+        fuel_this_step = fuel_flow_lbhr * dt_hr
+
+        # Horizontal distance
+        cos_gamma = math.sqrt(1.0 - sin_gamma ** 2)
+        horiz_fps = V_fps * cos_gamma
+        dist_ft = horiz_fps * dt_sec
+        dist_nm = dist_ft * FT_TO_NM
+
+        # Record step
+        steps.append({
+            "h_start_ft": h_current,
+            "h_end_ft": h_current + dh,
+            "h_mid_ft": h_mid,
+            "W_start_lb": W_current,
+            "fuel_lb": fuel_this_step,
+            "distance_nm": dist_nm,
+            "time_hr": dt_hr,
+            "roc_fpm": roc_fpm,
+            "thrust_avail_lbf": thrust_avail,
+            "drag_lbf": drag_lbf,
+            "excess_thrust_lbf": excess_thrust,
+            "mach": mach_climb,
+            "CL": CL,
+        })
+
+        # Update state
+        total_fuel += fuel_this_step
+        total_distance_nm += dist_nm
+        total_time_hr += dt_hr
+        W_current -= fuel_this_step
+        h_current += dh
+
+    return {
+        "fuel_burned_lb": total_fuel,
+        "distance_nm": total_distance_nm,
+        "time_hr": total_time_hr,
+        "ceiling_ft": h_current,
+        "steps": steps,
+        "ceiling_limited": ceiling_limited,
+    }
+
+
+def descend_segment(W_start_lb, h_start_ft, h_target_ft, mach_descent,
+                     wing_area_ft2, CD0, AR, e, tsfc_ref, k_adj,
+                     descent_rate_fpm=2000.0, idle_fraction=0.10):
+    """Compute fuel, distance, and time for an idle descent.
+
+    Fuel burn is scaled to aircraft size using idle_fraction of cruise
+    fuel flow at a representative mid-descent altitude, rather than
+    the fixed 300 lb used in Mission 1.
+
+    Args:
+        W_start_lb: Aircraft weight at start of descent (lbf)
+        h_start_ft: Starting altitude (ft)
+        h_target_ft: Target altitude (ft)
+        mach_descent: Mach number during descent
+        wing_area_ft2: Wing reference area (ft^2)
+        CD0: Zero-lift drag coefficient (calibrated)
+        AR: Wing aspect ratio
+        e: Oswald span efficiency factor (calibrated)
+        tsfc_ref: Reference cruise TSFC [lb/(lbf-hr)]
+        k_adj: TSFC calibration adjustment factor
+        descent_rate_fpm: Descent rate in ft/min (default 2000)
+        idle_fraction: Fraction of cruise fuel flow during idle descent
+                       (default 0.10, i.e. 10% of cruise thrust fuel flow)
+
+    Returns:
+        dict with:
+            fuel_burned_lb: Fuel consumed during descent
+            distance_nm: Horizontal distance covered during descent
+            time_hr: Descent time in hours
+    """
+    if h_start_ft <= h_target_ft:
+        return {"fuel_burned_lb": 0.0, "distance_nm": 0.0, "time_hr": 0.0}
+
+    delta_h = h_start_ft - h_target_ft
+
+    # Time to descend
+    time_min = delta_h / descent_rate_fpm
+    time_hr = time_min / 60.0
+
+    # Compute cruise fuel flow at mid-descent altitude for scaling
+    h_mid = (h_start_ft + h_target_ft) / 2.0
+    conds = performance.cruise_conditions(
+        W_start_lb, h_mid, mach_descent, wing_area_ft2,
+        CD0, AR, e, tsfc_ref, k_adj
+    )
+    cruise_fuel_flow_lbhr = conds["drag_lbf"] * conds["tsfc"]
+
+    # Idle descent fuel = idle_fraction * cruise_fuel_flow * time
+    descent_fuel = idle_fraction * cruise_fuel_flow_lbhr * time_hr
+
+    # Horizontal distance: TAS at mid-descent altitude * time
+    a_mid = atmosphere.speed_of_sound(h_mid)
+    V_fps = mach_descent * a_mid
+    V_ktas = V_fps * 3600.0 / NM_TO_FT
+    distance_nm = V_ktas * time_hr
+
+    return {
+        "fuel_burned_lb": descent_fuel,
+        "distance_nm": distance_nm,
+        "time_hr": time_hr,
+    }
 
 
 def _find_fuel_at_distance(segments, target_range_nm):
