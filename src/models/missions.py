@@ -579,3 +579,300 @@ def _infeasible_result(ac, cal, payload_requested, payload_actual, n_aircraft, r
         "per_aircraft": None,
         "aggregate": None,
     }
+
+
+def simulate_mission2_sampling(ac, cal, payload_lb=52_000, distance_nm=4_200,
+                                h_low_ft=5_000, max_cycles=50):
+    """Simulate Mission 2: Vertical atmospheric sampling (NZCH -> SCCI).
+
+    Route: Christchurch, NZ (NZCH) to Punta Arenas, Chile (SCCI)
+    Distance: ~4,200 nmi, Payload: 52,000 lb
+    Profile: Repeating sawtooth climb-descend cycles.
+
+    The aircraft repeatedly climbs from h_low_ft to its weight-limited
+    ceiling, then descends back to h_low_ft. As fuel burns off, the
+    aircraft gets lighter and can reach higher altitudes on each successive
+    cycle. The mission continues until total distance >= distance_nm
+    or fuel is exhausted.
+
+    Fuel budget: Explicit reserves only (no f_oh) — per
+    PHASE2_STEP1_RECONCILIATION.md.
+
+    For aircraft that cannot carry the full payload (GV, P-8), computes
+    fleet sizing and aggregate costs.
+
+    Args:
+        ac: Normalized aircraft data dict from loader
+        cal: Calibration result dict (CD0, e, k_adj, etc.)
+        payload_lb: Required total payload in lbf (default 52,000)
+        distance_nm: Total mission distance in nmi (default 4,200)
+        h_low_ft: Bottom altitude for sawtooth cycles (ft, default 5,000)
+        max_cycles: Safety limit on cycle count (default 50)
+
+    Returns:
+        dict with feasibility, per-aircraft results, fleet aggregate,
+        cycle details, and altitude profile data.
+    """
+    designation = ac["designation"]
+
+    # --- Step 1: Fleet sizing ---
+    actual_payload = min(payload_lb, ac["max_payload"])
+    if actual_payload < payload_lb:
+        n_aircraft = math.ceil(payload_lb / ac["max_payload"])
+        actual_payload = payload_lb / n_aircraft
+    else:
+        n_aircraft = 1
+
+    # --- Step 2: Fuel available ---
+    fuel_available = min(ac["MTOW"] - ac["OEW"] - actual_payload, ac["max_fuel"])
+    if fuel_available <= 0:
+        return _infeasible_result(ac, cal, payload_lb, actual_payload, n_aircraft,
+                                  "Cannot carry payload within MTOW")
+
+    W_tow = ac["OEW"] + actual_payload + fuel_available
+
+    # --- Step 3: Fuel budget (explicit reserves, no f_oh) ---
+    CD0 = cal["CD0"]
+    e = cal["e"]
+    k_adj = cal["k_adj"]
+
+    reserve_fuel = performance.compute_reserve_fuel(
+        fuel_available, ac, CD0, e, k_adj
+    )
+    mission_fuel = fuel_available - reserve_fuel
+    if mission_fuel <= 0:
+        return _infeasible_result(ac, cal, payload_lb, actual_payload, n_aircraft,
+                                  "No mission fuel after reserve deduction")
+
+    # --- Step 4: Mission parameters ---
+    ceiling = ac.get("service_ceiling_ft", 43_000)
+    mach = ac["cruise_mach"]
+    mach_climb = mach * 0.95
+    mach_descent = mach * 0.90
+
+    # --- Step 5: Sawtooth cycle simulation ---
+    W_current = W_tow
+    fuel_remaining = mission_fuel
+    distance_covered = 0.0
+    total_time_hr = 0.0
+    cycles = []
+
+    for cycle_num in range(1, max_cycles + 1):
+        if fuel_remaining <= 0 or distance_covered >= distance_nm:
+            break
+
+        cycle_start_weight = W_current
+        cycle_fuel = 0.0
+        cycle_distance = 0.0
+        cycle_time = 0.0
+
+        # --- Climb phase ---
+        climb_result = climb_segment(
+            W_start_lb=W_current,
+            h_start_ft=h_low_ft,
+            h_target_ft=ceiling,
+            mach_climb=mach_climb,
+            wing_area_ft2=ac["wing_area_ft2"],
+            CD0=CD0, AR=ac["aspect_ratio"], e=e,
+            tsfc_ref=ac["tsfc_cruise_ref"], k_adj=k_adj,
+            thrust_slst_lbf=ac["thrust_per_engine_slst_lbf"],
+            n_engines=ac["n_engines"],
+        )
+
+        climb_fuel = climb_result["fuel_burned_lb"]
+        climb_dist = climb_result["distance_nm"]
+        climb_time = climb_result["time_hr"]
+        cycle_ceiling = climb_result["ceiling_ft"]
+
+        # Check if climb exceeds remaining fuel
+        if climb_fuel > fuel_remaining:
+            # Partial climb — estimate fraction completed
+            frac = fuel_remaining / climb_fuel if climb_fuel > 0 else 0
+            climb_fuel = fuel_remaining
+            climb_dist *= frac
+            climb_time *= frac
+            cycle_ceiling = h_low_ft + (cycle_ceiling - h_low_ft) * frac
+
+            cycle_fuel += climb_fuel
+            cycle_distance += climb_dist
+            cycle_time += climb_time
+            W_current -= climb_fuel
+            fuel_remaining = 0
+
+            cycles.append({
+                "cycle": cycle_num,
+                "ceiling_ft": cycle_ceiling,
+                "climb_fuel_lb": climb_fuel,
+                "climb_distance_nm": climb_dist,
+                "climb_time_hr": climb_time,
+                "descent_fuel_lb": 0.0,
+                "descent_distance_nm": 0.0,
+                "descent_time_hr": 0.0,
+                "total_fuel_lb": cycle_fuel,
+                "total_distance_nm": cycle_distance,
+                "total_time_hr": cycle_time,
+                "weight_start_lb": cycle_start_weight,
+                "weight_end_lb": W_current,
+                "partial": True,
+            })
+            distance_covered += cycle_distance
+            total_time_hr += cycle_time
+            break
+
+        # Full climb completed
+        W_current -= climb_fuel
+        fuel_remaining -= climb_fuel
+        cycle_fuel += climb_fuel
+        cycle_distance += climb_dist
+        cycle_time += climb_time
+
+        # Check if distance goal reached during climb
+        if distance_covered + cycle_distance >= distance_nm:
+            cycles.append({
+                "cycle": cycle_num,
+                "ceiling_ft": cycle_ceiling,
+                "climb_fuel_lb": climb_fuel,
+                "climb_distance_nm": climb_dist,
+                "climb_time_hr": climb_time,
+                "descent_fuel_lb": 0.0,
+                "descent_distance_nm": 0.0,
+                "descent_time_hr": 0.0,
+                "total_fuel_lb": cycle_fuel,
+                "total_distance_nm": cycle_distance,
+                "total_time_hr": cycle_time,
+                "weight_start_lb": cycle_start_weight,
+                "weight_end_lb": W_current,
+                "partial": True,
+            })
+            distance_covered += cycle_distance
+            total_time_hr += cycle_time
+            break
+
+        # --- Descent phase ---
+        descent_result = descend_segment(
+            W_start_lb=W_current,
+            h_start_ft=cycle_ceiling,
+            h_target_ft=h_low_ft,
+            mach_descent=mach_descent,
+            wing_area_ft2=ac["wing_area_ft2"],
+            CD0=CD0, AR=ac["aspect_ratio"], e=e,
+            tsfc_ref=ac["tsfc_cruise_ref"], k_adj=k_adj,
+        )
+
+        descent_fuel = descent_result["fuel_burned_lb"]
+        descent_dist = descent_result["distance_nm"]
+        descent_time = descent_result["time_hr"]
+
+        # Check if descent exceeds remaining fuel
+        if descent_fuel > fuel_remaining:
+            frac = fuel_remaining / descent_fuel if descent_fuel > 0 else 0
+            descent_fuel = fuel_remaining
+            descent_dist *= frac
+            descent_time *= frac
+            fuel_remaining = 0
+        else:
+            fuel_remaining -= descent_fuel
+
+        W_current -= descent_fuel
+        cycle_fuel += descent_fuel
+        cycle_distance += descent_dist
+        cycle_time += descent_time
+
+        cycles.append({
+            "cycle": cycle_num,
+            "ceiling_ft": cycle_ceiling,
+            "climb_fuel_lb": climb_fuel,
+            "climb_distance_nm": climb_dist,
+            "climb_time_hr": climb_time,
+            "descent_fuel_lb": descent_fuel,
+            "descent_distance_nm": descent_dist,
+            "descent_time_hr": descent_time,
+            "total_fuel_lb": cycle_fuel,
+            "total_distance_nm": cycle_distance,
+            "total_time_hr": cycle_time,
+            "weight_start_lb": cycle_start_weight,
+            "weight_end_lb": W_current,
+            "partial": False,
+        })
+        distance_covered += cycle_distance
+        total_time_hr += cycle_time
+
+    # --- Step 6: Feasibility ---
+    total_fuel_burned = mission_fuel - fuel_remaining
+    feasible = distance_covered >= distance_nm and fuel_remaining >= -50
+
+    # --- Step 7: Fuel cost metrics ---
+    total_fuel_cost = fuel_cost(fuel_available)
+    fuel_cost_metric = (
+        total_fuel_cost / (actual_payload / 1000.0 * distance_nm)
+        if actual_payload > 0 and distance_nm > 0 else float('inf')
+    )
+
+    # --- Step 8: Build altitude profile for plotting ---
+    # Construct a list of (distance_nm, altitude_ft) points for the sawtooth
+    profile_points = []
+    cum_dist = 0.0
+    for c in cycles:
+        # Start of climb (at h_low)
+        profile_points.append((cum_dist, h_low_ft))
+        # Top of climb (at ceiling)
+        cum_dist += c["climb_distance_nm"]
+        profile_points.append((cum_dist, c["ceiling_ft"]))
+        # Bottom of descent (at h_low), if descent occurred
+        if c["descent_distance_nm"] > 0:
+            cum_dist += c["descent_distance_nm"]
+            profile_points.append((cum_dist, h_low_ft))
+
+    # --- Step 9: Assemble per-aircraft result ---
+    per_aircraft = {
+        "takeoff_weight_lb": W_tow,
+        "oew_lb": ac["OEW"],
+        "payload_lb": actual_payload,
+        "total_fuel_lb": fuel_available,
+        "reserve_fuel_lb": reserve_fuel,
+        "mission_fuel_lb": mission_fuel,
+        "fuel_burned_lb": total_fuel_burned,
+        "fuel_remaining_lb": max(fuel_remaining, 0),
+        "distance_covered_nm": distance_covered,
+        "total_time_hr": total_time_hr,
+        "n_cycles": len(cycles),
+        "cycles": cycles,
+        "profile_points": profile_points,
+        "peak_ceiling_ft": max(c["ceiling_ft"] for c in cycles) if cycles else 0,
+        "initial_ceiling_ft": cycles[0]["ceiling_ft"] if cycles else 0,
+        "final_ceiling_ft": cycles[-1]["ceiling_ft"] if cycles else 0,
+        "fuel_cost_usd": total_fuel_cost,
+        "fuel_cost_per_1000lb_nm": fuel_cost_metric,
+    }
+
+    # --- Step 10: Fleet aggregate ---
+    if n_aircraft > 1:
+        fleet_fuel_cost = n_aircraft * total_fuel_cost
+        aggregate = {
+            "n_aircraft": n_aircraft,
+            "total_payload_lb": n_aircraft * actual_payload,
+            "total_fuel_lb": n_aircraft * fuel_available,
+            "total_fuel_burned_lb": n_aircraft * total_fuel_burned,
+            "total_fuel_cost_usd": fleet_fuel_cost,
+            "fuel_cost_per_1000lb_nm": (
+                fleet_fuel_cost / (payload_lb / 1000.0 * distance_nm)
+                if payload_lb > 0 else float('inf')
+            ),
+        }
+    else:
+        aggregate = None
+
+    return {
+        "feasible": feasible,
+        "infeasible_reason": (
+            None if feasible else
+            _determine_infeasibility(distance_covered, distance_nm, fuel_remaining)
+        ),
+        "aircraft_name": ac.get("name", designation),
+        "designation": designation,
+        "payload_requested_lb": payload_lb,
+        "payload_actual_lb": actual_payload,
+        "n_aircraft": n_aircraft,
+        "per_aircraft": per_aircraft,
+        "aggregate": aggregate,
+    }

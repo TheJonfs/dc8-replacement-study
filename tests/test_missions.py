@@ -8,7 +8,7 @@ sys.path.insert(0, '.')
 
 import pytest
 import math
-from src.models.missions import climb_segment, descend_segment
+from src.models.missions import climb_segment, descend_segment, simulate_mission2_sampling
 
 
 # --- Synthetic aircraft parameters for testing ---
@@ -284,3 +284,181 @@ class TestDescendSegment:
         )
         expected_time_hr = (35_000 - 5_000) / 2000.0 / 60.0  # 0.25 hr
         assert result["time_hr"] == pytest.approx(expected_time_hr, rel=1e-10)
+
+
+# --- Synthetic aircraft dict and calibration for Mission 2 testing ---
+# This mimics the structure produced by loader.py + calibrate_aircraft()
+
+def _make_synth_aircraft(designation="SYNTH-767", oew=180_000, mtow=395_000,
+                          max_fuel=160_000, max_payload=80_000,
+                          n_engines=2, cruise_mach=0.80):
+    """Create a synthetic aircraft dict for testing."""
+    return {
+        "designation": designation,
+        "name": f"Synthetic {designation}",
+        "OEW": oew,
+        "MTOW": mtow,
+        "MZFW": oew + max_payload,
+        "max_payload": max_payload,
+        "max_fuel": max_fuel,
+        "wing_area_ft2": SYNTH_WING_AREA,
+        "wingspan_ft": 156.0,
+        "aspect_ratio": SYNTH_AR,
+        "n_engines": n_engines,
+        "cruise_mach": cruise_mach,
+        "tsfc_cruise_ref": SYNTH_TSFC_REF,
+        "thrust_per_engine_slst_lbf": SYNTH_THRUST_SLST,
+        "service_ceiling_ft": 43_000,
+    }
+
+
+def _make_synth_calibration():
+    """Create a synthetic calibration result dict for testing."""
+    return {
+        "CD0": SYNTH_CD0,
+        "e": SYNTH_E,
+        "k_adj": SYNTH_K_ADJ,
+        "f_oh": 0.05,
+    }
+
+
+class TestMission2Sampling:
+    """Tests for simulate_mission2_sampling()."""
+
+    def test_basic_feasibility(self):
+        """A well-configured aircraft should complete the mission."""
+        ac = _make_synth_aircraft()
+        cal = _make_synth_calibration()
+        result = simulate_mission2_sampling(ac, cal, payload_lb=52_000,
+                                             distance_nm=4_200)
+        # With 163,000 lb fuel (395k - 180k - 52k), mission should be feasible
+        assert result["feasible"] is True
+        pa = result["per_aircraft"]
+        assert pa["distance_covered_nm"] >= 4_200
+        assert pa["n_cycles"] >= 1
+
+    def test_returns_expected_keys(self):
+        ac = _make_synth_aircraft()
+        cal = _make_synth_calibration()
+        result = simulate_mission2_sampling(ac, cal)
+        assert "feasible" in result
+        assert "per_aircraft" in result
+        assert "designation" in result
+        assert "n_aircraft" in result
+        pa = result["per_aircraft"]
+        assert "cycles" in pa
+        assert "profile_points" in pa
+        assert "peak_ceiling_ft" in pa
+        assert "fuel_cost_usd" in pa
+
+    def test_ceiling_increases_with_cycles(self):
+        """As fuel burns off, ceiling should generally increase."""
+        ac = _make_synth_aircraft()
+        cal = _make_synth_calibration()
+        result = simulate_mission2_sampling(ac, cal, payload_lb=52_000,
+                                             distance_nm=4_200)
+        pa = result["per_aircraft"]
+        cycles = pa["cycles"]
+        if len(cycles) >= 3:
+            # Compare first and last full cycle ceilings
+            full_cycles = [c for c in cycles if not c.get("partial", False)]
+            if len(full_cycles) >= 2:
+                assert full_cycles[-1]["ceiling_ft"] >= full_cycles[0]["ceiling_ft"]
+
+    def test_fleet_sizing_small_aircraft(self):
+        """Aircraft with small max_payload should trigger fleet sizing."""
+        ac = _make_synth_aircraft(designation="SMALL", max_payload=10_000)
+        cal = _make_synth_calibration()
+        result = simulate_mission2_sampling(ac, cal, payload_lb=52_000)
+        assert result["n_aircraft"] == math.ceil(52_000 / 10_000)
+        assert result["payload_actual_lb"] < 52_000
+
+    def test_fleet_aggregate_computed(self):
+        """Multi-aircraft fleet should have aggregate cost data."""
+        ac = _make_synth_aircraft(designation="SMALL", max_payload=10_000)
+        cal = _make_synth_calibration()
+        result = simulate_mission2_sampling(ac, cal, payload_lb=52_000)
+        if result["feasible"] or result["per_aircraft"] is not None:
+            assert result["aggregate"] is not None
+            assert result["aggregate"]["n_aircraft"] > 1
+
+    def test_infeasible_when_payload_exceeds_capacity(self):
+        """An aircraft that can't carry payload within MTOW should be infeasible."""
+        # OEW + payload > MTOW, no room for fuel
+        ac = _make_synth_aircraft(oew=350_000, mtow=395_000, max_payload=80_000)
+        cal = _make_synth_calibration()
+        result = simulate_mission2_sampling(ac, cal, payload_lb=52_000)
+        # fuel_available = min(395k - 350k - 52k, max_fuel) = min(-7k, ...) < 0
+        assert result["feasible"] is False
+
+    def test_weight_decreases_across_cycles(self):
+        """Aircraft weight should decrease as fuel is burned."""
+        ac = _make_synth_aircraft()
+        cal = _make_synth_calibration()
+        result = simulate_mission2_sampling(ac, cal, payload_lb=52_000,
+                                             distance_nm=4_200)
+        pa = result["per_aircraft"]
+        cycles = pa["cycles"]
+        if len(cycles) >= 2:
+            assert cycles[-1]["weight_end_lb"] < cycles[0]["weight_start_lb"]
+
+    def test_profile_points_monotonic_distance(self):
+        """Profile distance coordinates should be monotonically increasing."""
+        ac = _make_synth_aircraft()
+        cal = _make_synth_calibration()
+        result = simulate_mission2_sampling(ac, cal, payload_lb=52_000,
+                                             distance_nm=4_200)
+        pa = result["per_aircraft"]
+        points = pa["profile_points"]
+        if len(points) >= 2:
+            distances = [p[0] for p in points]
+            for i in range(1, len(distances)):
+                assert distances[i] >= distances[i - 1]
+
+    def test_profile_shows_sawtooth(self):
+        """Profile altitude should oscillate between h_low and ceiling."""
+        ac = _make_synth_aircraft()
+        cal = _make_synth_calibration()
+        result = simulate_mission2_sampling(ac, cal, payload_lb=52_000,
+                                             distance_nm=4_200, h_low_ft=5_000)
+        pa = result["per_aircraft"]
+        points = pa["profile_points"]
+        if len(points) >= 3:
+            altitudes = [p[1] for p in points]
+            # Should have both low (5,000 ft) and high (>20,000 ft) altitudes
+            assert min(altitudes) == 5_000
+            assert max(altitudes) > 20_000
+
+    def test_fuel_accounting_consistent(self):
+        """Total fuel burned + remaining should equal mission fuel budget."""
+        ac = _make_synth_aircraft()
+        cal = _make_synth_calibration()
+        result = simulate_mission2_sampling(ac, cal, payload_lb=52_000,
+                                             distance_nm=4_200)
+        pa = result["per_aircraft"]
+        # fuel_burned + fuel_remaining should equal mission_fuel
+        total = pa["fuel_burned_lb"] + pa["fuel_remaining_lb"]
+        assert total == pytest.approx(pa["mission_fuel_lb"], rel=0.01)
+
+    def test_short_distance_fewer_cycles(self):
+        """A shorter mission should require fewer cycles."""
+        ac = _make_synth_aircraft()
+        cal = _make_synth_calibration()
+        short = simulate_mission2_sampling(ac, cal, payload_lb=52_000,
+                                            distance_nm=1_000)
+        long = simulate_mission2_sampling(ac, cal, payload_lb=52_000,
+                                           distance_nm=4_200)
+        assert short["per_aircraft"]["n_cycles"] <= long["per_aircraft"]["n_cycles"]
+
+    def test_no_foh_used(self):
+        """Mission 2 should not use f_oh — fuel budget is explicit reserves only."""
+        ac = _make_synth_aircraft()
+        # Use a large f_oh to verify it's NOT being used
+        cal = _make_synth_calibration()
+        cal["f_oh"] = 0.30  # would remove 30% of MTOW as overhead if used
+        result = simulate_mission2_sampling(ac, cal, payload_lb=52_000,
+                                             distance_nm=4_200)
+        pa = result["per_aircraft"]
+        # mission_fuel should be total_fuel minus reserves (not minus f_oh * MTOW)
+        # If f_oh were used, mission_fuel would be much smaller
+        assert pa["mission_fuel_lb"] > pa["total_fuel_lb"] * 0.5
