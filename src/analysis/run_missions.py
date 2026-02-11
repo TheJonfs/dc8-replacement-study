@@ -116,6 +116,8 @@ def _print_mission1_result(result):
     print(f"    Surplus/deficit:  {pa['range_surplus_nm']:>+12,.0f} nm")
     print(f"    Fuel burned:      {pa['total_fuel_burned_lb']:>12,.0f} lb")
     print(f"    Reserve remaining:{pa['reserve_fuel_lb']:>12,.0f} lb")
+    if pa.get("fuel_at_destination_lb") is not None:
+        print(f"    Fuel at dest:     {pa['fuel_at_destination_lb']:>12,.0f} lb")
     print(f"    Fuel cost:        ${pa['fuel_cost_usd']:>11,.0f}")
     print(f"    Cost/1000lb·nm:   ${pa['fuel_cost_per_1000lb_nm']:>11.4f}")
 
@@ -134,7 +136,7 @@ def _print_mission1_summary(results):
     print("MISSION 1 SUMMARY: Long-Range Transport with Engine-Out (SCEL→KPMD, 5,050 nm, 46,000 lb)")
     print(f"{'='*120}")
     print(f"{'Aircraft':<12} {'Status':<10} {'n_ac':>4} {'Payload':>10} {'Fuel':>10} "
-          f"{'Range':>8} {'Surplus':>8} {'Reserve':>10} "
+          f"{'Range':>8} {'Surplus':>8} {'Fuel@Dest':>10} "
           f"{'Cost':>10} {'$/klb·nm':>10}")
     print(f"{'-'*12} {'-'*10} {'-'*4} {'-'*10} {'-'*10} "
           f"{'-'*8} {'-'*8} {'-'*10} "
@@ -158,16 +160,19 @@ def _print_mission1_summary(results):
             cost_display = pa["fuel_cost_usd"]
             metric_display = pa["fuel_cost_per_1000lb_nm"]
 
+        fad = pa.get("fuel_at_destination_lb")
+        fad_str = f"{fad:>10,.0f}" if fad is not None else f"{'—':>10}"
+
         print(f"{d:<12} {status:<10} {r['n_aircraft']:>4} "
               f"{pa['payload_lb']:>10,.0f} {pa['total_fuel_lb']:>10,.0f} "
               f"{pa['total_range_nm']:>8,.0f} {pa['range_surplus_nm']:>+8,.0f} "
-              f"{pa['reserve_fuel_lb']:>10,.0f} "
+              f"{fad_str} "
               f"${cost_display:>9,.0f} ${metric_display:>9.4f}")
 
     print(f"\nNotes:")
     print(f"  - Payload column shows per-aircraft payload (may be < 46,000 lb for fleet operations)")
     print(f"  - Cost and $/klb·nm show fleet aggregate for multi-aircraft entries")
-    print(f"  - Reserve = cruise fuel not burned (available beyond mission distance)")
+    print(f"  - Fuel@Dest = cruise fuel remaining at 5,050 nm (feasible aircraft only)")
     print(f"  - DC-8 and A330 fuel metrics are low-confidence (see PHASE2_STEP1_RECONCILIATION.md)")
     print()
 
