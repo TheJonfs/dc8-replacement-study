@@ -223,6 +223,7 @@ def simulate_mission1_engine_out(ac, cal, payload_lb=46_000, distance_nm=5050,
             n_engines=n_engines_eo,
             n_steps=n_steps_per_segment,
             drag_multiplier=drag_mult,
+            h_min=10_000,  # lower floor to find true engine-out ceiling
         )
         seg2_range = seg2_result["range_nm"]
         seg2_fuel_burned = seg2_result["fuel_burned_lb"]
@@ -239,6 +240,29 @@ def simulate_mission1_engine_out(ac, cal, payload_lb=46_000, distance_nm=5050,
     reserve_remaining = cruise_fuel - total_fuel_burned
 
     feasible = total_range >= distance_nm and reserve_remaining >= -50  # small tolerance
+
+    # --- Step 7b: Fuel remaining at destination (for feasible aircraft) ---
+    # If the aircraft can reach the required distance, calculate how much
+    # cruise fuel remains unburned at exactly the mission distance.
+    # This gives pilots a meaningful "fuel on board at destination" metric.
+    fuel_at_destination_lb = None
+    if feasible:
+        required_cruise_distance = distance_nm - CLIMB_DISTANCE_NM - DESCENT_DISTANCE_NM
+        # Combine seg1 + seg2 segments with continuous cumulative tracking
+        # seg1 segments have raw cumulative_range_nm; seg2 segments need offset
+        combined_for_fad = []
+        for s in seg1_segments:
+            combined_for_fad.append(dict(s))
+        seg1_total_fuel = seg1_fuel_burned
+        seg1_total_range_val = seg1_range
+        for s in seg2_segments:
+            entry = dict(s)
+            entry["cumulative_range_nm"] = seg1_total_range_val + s["cumulative_range_nm"]
+            entry["cumulative_fuel_lb"] = seg1_total_fuel + s["cumulative_fuel_lb"]
+            combined_for_fad.append(entry)
+        fad_result = _find_fuel_at_distance(combined_for_fad, required_cruise_distance)
+        if fad_result["reached"]:
+            fuel_at_destination_lb = cruise_fuel - fad_result["fuel_burned_lb"]
 
     # --- Step 8: Offset segment data for continuous distance axis ---
     # Segment 1: offset by climb credit
@@ -294,6 +318,7 @@ def simulate_mission1_engine_out(ac, cal, payload_lb=46_000, distance_nm=5050,
         "range_surplus_nm": total_range - distance_nm,
         "total_fuel_burned_lb": total_fuel_burned,
         "reserve_fuel_lb": max(reserve_remaining, 0),
+        "fuel_at_destination_lb": fuel_at_destination_lb,
         "fuel_cost_usd": total_fuel_cost,
         "fuel_cost_per_1000lb_nm": fuel_cost_metric,
     }

@@ -1,4 +1,4 @@
-# Phase 2: Mission 1 — Long-Range Transport with Engine-Out
+# Phase 2: Mission 1 — Long-Range Transport with Engine-Out (Revised)
 
 ## Mission Definition
 
@@ -12,30 +12,116 @@
 
 ## Summary of Results
 
-| Aircraft | Status | n_ac | Payload (lb) | Fuel (lb) | Range (nm) | Surplus (nm) | Cost | $/klb·nm |
-|---|---|---|---|---|---|---|---|---|
-| **767-200ER** | **PASS** | 1 | 46,000 | 162,000 | 6,252 | +1,202 | $132,985 | $0.5725 |
-| **777-200LR** | **PASS** | 1 | 46,000 | 325,300 | 6,217 | +1,167 | $267,037 | $1.1495 |
-| GV | FAIL | 8 | 5,750 ea | 36,550 ea | 4,853 | -197 | $240,030† | $1.0333† |
-| A330-200 | FAIL | 1 | 46,000 | 221,619 | 4,633 | -417 | $181,926 | $0.7832 |
-| P-8 | FAIL | 2 | 23,000 ea | 73,320 ea | 3,765 | -1,285 | $120,376† | $0.5182† |
-| DC-8 | FAIL | 1 | 46,000 | 122,000 | 3,187 | -1,863 | $100,149 | $0.4311 |
+| Aircraft | Status | n_ac | Payload (lb) | Fuel (lb) | Range (nm) | Surplus (nm) | Fuel@Dest (lb) | Cost | $/klb·nm |
+|---|---|---|---|---|---|---|---|---|---|
+| **767-200ER** | **PASS** | 1 | 46,000 | 162,000 | 6,252 | +1,202 | 25,732 | $132,985 | $0.5725 |
+| 777-200LR | FAIL | 1 | 46,000 | 325,300 | 4,622 | -428 | — | $267,037 | $1.1495 |
+| GV | FAIL | 8 | 5,750 ea | 36,550 ea | 4,855 | -195 | — | $240,030† | $1.0333† |
+| A330-200 | FAIL | 1 | 46,000 | 221,619 | 3,741 | -1,309 | — | $181,926 | $0.7832 |
+| P-8 | FAIL | 2 | 23,000 ea | 73,320 ea | 3,276 | -1,774 | — | $120,376† | $0.5182† |
+| DC-8 | FAIL | 1 | 46,000 | 122,000 | 3,187 | -1,863 | — | $100,149 | $0.4311 |
 
 †Fleet aggregate (cost and $/klb·nm are for the full fleet of n_ac aircraft)
 
-**Only the 767-200ER and 777-200LR complete the mission.** The 767 is the clear winner on cost efficiency ($0.57/klb·nm vs. $1.15 for the 777). The 767 also carries less than half the fuel (162,000 lb vs. 325,300 lb).
+**Only the 767-200ER completes the mission.** It has the best cost efficiency ($0.57/klb·nm) and arrives with 25,732 lb of cruise fuel remaining at 5,050 nm — a substantial reserve.
+
+The 777-200LR, which passed in the initial analysis, now fails by 428 nm after lowering the engine-out altitude search floor from 25,000 ft to 10,000 ft. This revealed that the 777's calibrated model produces drag that exceeds single-engine thrust at all altitudes — an unphysical result driven by the calibrated CD0 of 0.041 (see Altitude Investigation below). **The 777 result should be treated as uncertain** — the real aircraft almost certainly completes this mission, but the model cannot confirm it.
+
+## Changes Since Initial Report
+
+This is a revised report incorporating reviewer feedback from the first submission. Three changes were made:
+
+### 1. Fuel-at-Destination Metric (Reviewer Q1: "Yes, add this")
+
+For feasible aircraft, the model now computes cruise fuel remaining at exactly 5,050 nm using `_find_fuel_at_distance()`. The 767-200ER arrives with **25,732 lb** of cruise fuel — in addition to the reserves embedded in f_oh. This gives a meaningful operational metric: the fuel state at destination.
+
+### 2. Lower Engine-Out Altitude Floor (Reviewer Q2: "Yes, lower it")
+
+The altitude search floor for engine-out segments was lowered from 25,000 ft to 10,000 ft. This exposed two issues:
+
+**Non-monotonic thrust-drag behavior.** The original optimizer used `break` when thrust was insufficient — it assumed "if thrust fails at altitude h, it fails at all h' > h." This is true for the CL buffet check (CL increases monotonically with altitude) but **not** for thrust vs. drag. At low altitudes, high dynamic pressure creates high drag even though thrust is also high. At mid-altitudes, the balance can be favorable before thrust lapse dominates at high altitudes. The fix: changed the thrust check from `break` to `continue`, allowing the optimizer to search through the full altitude range and find the true optimum.
+
+**Unphysical calibrated drag for three aircraft.** With the floor lowered and the search corrected, the model revealed that for the P-8, A330, and 777, single-engine thrust is insufficient to sustain level flight at *any* altitude from 10,000 to 43,000 ft. This is a calibration artifact — their calibrated CD0 values (0.060, 0.033, and 0.041 respectively) are 2–4× higher than physical reality (~0.015–0.020 for transport aircraft), because the calibration optimizer pushed CD0 high to compensate for other model errors.
+
+### 3. Mach Reduction Note (Reviewer additional note)
+
+Added as a known simplification in the Limitations section. Standard engine-out procedure involves decelerating ~0.02–0.05 Mach below normal cruise, but this is a secondary effect compared to the altitude change.
+
+## Altitude Investigation Detail
+
+The engine-out thrust margin diagnostic at the weight where each aircraft experiences engine failure:
+
+| Aircraft | n_eng EO | CD0 (cal) | Thrust@25k | Drag×1.1@25k | Margin@25k | EO Altitude |
+|---|---|---|---|---|---|---|
+| DC-8 | 3 | 0.014 | 36,147 | 19,663 | **+16,484** | 39,500–40,000 ft |
+| GV | 1 | 0.015 | 8,078 | 7,531 | **+548** | 40,000–45,000 ft |
+| 767-200ER | 1 | 0.018 | 28,753 | 26,746 | **+2,008** | 33,000–43,000 ft |
+| P-8 | 1 | 0.060 | 14,952 | 31,977 | **-17,025** | 10,000 ft (floor) |
+| A330-200 | 1 | 0.033 | 39,433 | 55,092 | **-15,659** | 10,000 ft (floor) |
+| 777-200LR | 1 | 0.041 | 60,300 | 86,444 | **-26,145** | 10,000 ft (floor) |
+
+Aircraft with positive margins find their optimal engine-out altitude through the normal search process. Aircraft with negative margins at all altitudes default to h_min (10,000 ft), where drag is even higher due to dense air — this penalizes their range significantly.
+
+**Physical reality check:** All ETOPS-certified twin-engine aircraft must demonstrate single-engine cruise capability. The P-8, A330, and 777 can unquestionably fly on one engine in reality. The model's failure to reproduce this is a direct consequence of the calibration absorbing errors into CD0, producing effective drag coefficients far above physical values.
+
+**Impact on the 777 result:** With h_min=25,000 ft (original), the 777 passed with +1,167 nm surplus. With h_min=10,000 ft and thrust insufficient everywhere, the optimizer falls to 10,000 ft, where fuel burn roughly doubles, and the 777 fails by -428 nm. The true answer is somewhere in between — the 777 *probably* passes this mission in reality, but the model cannot reliably determine this.
+
+## Detailed Observations
+
+### The Sole Feasible Aircraft
+
+**767-200ER** — Clear Mission 1 winner.
+- Lowest f_oh (0.030), so 97% of fuel goes to cruise
+- Normal cruise at 35,000–39,000 ft; engine-out cruise at 33,000–43,000 ft
+- The engine-out altitude *increases* over the segment as fuel burns off — the single CF6-80C2 has enough thrust to sustain and climb as weight decreases
+- 1,202 nm range surplus + 25,732 lb fuel at destination = substantial safety margin
+- Lowest cost per payload-distance of all aircraft ($0.57/klb·nm)
+- **Highest confidence result** in the study (calibrated CD0=0.018 is physical, RMS 0.0%)
+
+### Infeasible Aircraft
+
+**777-200LR** — Fails by 428 nm, but result is uncertain.
+- Normal cruise at 35,000–37,000 ft; engine-out forced to 10,000 ft (thrust insufficient at all altitudes due to calibrated CD0=0.041)
+- Burns 192,897 lb in the engine-out segment at 10,000 ft — roughly twice what it would burn at 25,000+ ft
+- At 325,300 lb fuel load, the 777 should have ample range on paper, but the model's drag overprediction consumes it
+- **This is the most important uncertain result in Mission 1.** The real 777 likely passes, making the choice between 767 and 777 a cost/efficiency question rather than a feasibility one
+- Even if it passes, cost efficiency ($1.15/klb·nm) is twice the 767's
+
+**GV** — Closest to feasibility (-195 nm shortfall).
+- Requires 8 aircraft to carry 46,000 lb (max payload 5,750 lb each)
+- Excellent aerodynamic efficiency: cruises at 43,000–46,000 ft on 2 engines, drops to 40,000–45,000 ft on 1 engine
+- The altitude drop on engine-out is small (~3,000 ft) because the GV is light enough that a single BR710 sustains near-cruise altitude
+- Fleet aggregate cost of $240,030 makes it the most expensive option
+- Per reviewer guidance: the 8-aircraft fleet is operationally impractical regardless of marginal range feasibility
+
+**A330-200** — Falls 1,309 nm short; result is low-confidence.
+- f_oh calibrated to 0.000, meaning ALL fuel is allocated to cruise
+- Calibrated CD0=0.033 and e=2.165 (Oswald efficiency >1) are both unphysical
+- Engine-out forced to 10,000 ft (thrust insufficient at all altitudes), burning 131,870 lb in the engine-out segment alone
+- Even if the A330 marginally passed with a better calibration, it would be oversized and cost-inefficient for this mission
+
+**P-8** — Falls 1,774 nm short.
+- Requires 2 aircraft for the 46,000 lb payload (max payload 23,885 lb)
+- Calibrated CD0=0.060 is the highest of all aircraft — engine-out at 10,000 ft burns fuel rapidly
+- The P-8's strengths (modern airframe, reinforced structure, mission systems) are better suited to shorter-range missions
+
+**DC-8** — Falls 1,863 nm short; expected result.
+- Highest f_oh (0.260) removes 84,582 lb of the 122,000 lb fuel load as overhead, leaving only 37,418 lb for cruise
+- Engine-out on 3 of 4 engines barely affects altitude (39,500–40,000 ft) — the four-engine configuration provides thrust redundancy that twins cannot match
+- This mission was selected specifically because it stresses the DC-8's capability; the DC-8 failing reinforces the case for replacement
+- Result is **low-confidence** due to extreme calibration compensation (k_adj=0.605)
 
 ## Methodology
 
 ### Two-Segment Cruise Model
 
-The engine-out mission is modeled as two consecutive cruise segments:
+1. **Segment 1 (0 → 2,525 nm): Normal cruise**, all engines, no drag penalty. The step-cruise integrator runs at full resolution, then `_find_fuel_at_distance()` interpolates to find the exact fuel burn and aircraft weight at the midpoint.
 
-1. **Segment 1 (0 → 2,525 nm): Normal cruise**, all engines, no drag penalty. The step-cruise integrator runs at full resolution, then `_find_fuel_at_distance()` interpolates to find the exact fuel burn and aircraft weight at the midpoint distance minus climb credit (2,525 - 200 = 2,325 nm of cruise).
+2. **Segment 2 (2,525 → end of fuel): Engine-out cruise**, n_engines - 1, +10% drag multiplier, altitude optimizer searches from 10,000 ft with non-breaking thrust check. The segment runs until all remaining cruise fuel is exhausted.
 
-2. **Segment 2 (2,525 → end of fuel): Engine-out cruise**, n_engines - 1, +10% drag multiplier. The altitude optimizer naturally finds a lower ceiling due to reduced thrust available. The segment runs until all remaining cruise fuel is exhausted.
+**Total mission range** = climb credit (200 nm) + segment 1 cruise + segment 2 cruise + descent credit (120 nm).
 
-**Total mission range** = climb credit (200 nm) + segment 1 cruise range + segment 2 cruise range + descent credit (120 nm).
+**Fuel at destination** (feasible aircraft only): For aircraft whose total range exceeds 5,050 nm, `_find_fuel_at_distance()` is applied to the combined segment data to find cruise fuel burned at exactly 5,050 nm. Remaining cruise fuel = total cruise fuel - fuel burned at destination.
 
 ### Fuel Budget (f_oh Hybrid)
 
@@ -48,99 +134,44 @@ Per the confirmed Phase 2 approach (see PHASE2_STEP1_RECONCILIATION.md):
 
 Aircraft that cannot carry 46,000 lb payload (GV max payload = 5,750 lb, P-8 max payload = 23,885 lb) are modeled as a fleet. Payload is divided evenly across n = ceil(46,000 / max_payload) aircraft. Cost metrics are aggregated.
 
-### Engine-Out Drag Bug Fix
-
-A bug was found and fixed in `optimal_cruise_altitude()`: the thrust-available check was comparing against un-adjusted drag, so during engine-out segments the altitude optimizer could select altitudes where thrust was sufficient for normal drag but not for the 10%-higher engine-out drag. The fix passes the `drag_multiplier` through from `step_cruise_range()` to the altitude check. Default value is 1.0, so the fix is fully backward-compatible (all existing calibration and Phase 1 tests pass without change).
-
-## Detailed Observations
-
-### Feasible Aircraft
-
-**767-200ER** — Best overall Mission 1 performer.
-- Lowest f_oh of the feasible aircraft (0.030), so 97% of fuel goes to cruise
-- Normal cruise at 35,000–39,000 ft; engine-out cruise at 33,000–43,000 ft
-- The engine-out altitude *increases* over the segment as fuel burns off and the aircraft gets lighter — the single GE CF6-80C2 engine has enough thrust to climb as weight decreases
-- 1,202 nm range surplus provides substantial safety margin
-- Lowest cost per payload-distance of all aircraft ($0.57/klb·nm)
-
-**777-200LR** — Completes mission but at much higher cost.
-- Higher f_oh (0.080), removing 55,431 lb as overhead
-- Normal cruise at 35,000–37,000 ft; engine-out cruise stuck at 25,000 ft
-- The single GE90-115B engine cannot push the 614,327 lb aircraft above 25,000 ft with +10% drag. This is thrust-limited, not buffet-limited — the 777 is simply too heavy
-- Engine-out altitude remains at 25,000 ft for the entire segment (the aircraft never gets light enough to climb)
-- 325,300 lb fuel load is double the 767's, yielding fuel cost of $267,037 vs. $133,000
-- Cost efficiency ($1.15/klb·nm) is the worst among all aircraft, even worse than the 8-aircraft GV fleet
-
-### Infeasible Aircraft
-
-**GV** — Closest to feasibility (-197 nm shortfall).
-- Requires 8 aircraft to carry 46,000 lb (max payload 5,750 lb each)
-- Excellent aerodynamic efficiency: cruises at 43,000–46,000 ft on 2 engines, drops to 40,000–45,000 ft on 1 engine
-- The altitude drop on engine-out is relatively small (~3,000 ft) because the GV is light enough that a single Rolls-Royce BR710 can sustain near-cruise altitude
-- Fleet aggregate cost of $240,030 makes it the most expensive option
-- With 197 nm less range, could potentially complete the mission with slightly reduced payload
-
-**A330-200** — Falls 417 nm short.
-- f_oh calibrated to 0.000, meaning ALL fuel is allocated to cruise — no overhead at all. This is a known calibration edge case (see PHASE2_STEP1_RECONCILIATION.md)
-- Despite burning all 221,619 lb as cruise fuel, range still falls short
-- Engine-out segment stuck at 25,000 ft (thrust-limited with single Trent 772B engine at 443,770 lb weight)
-- The A330 result is flagged as **low-confidence** — the calibrated model has an unphysical f_oh=0 and e=2.165 (Oswald efficiency >1, which is physically impossible but compensates for other model errors)
-
-**P-8** — Falls 1,285 nm short.
-- Requires 2 aircraft for the 46,000 lb payload (max payload 23,885 lb)
-- High f_oh (0.180) removes 33,810 lb as overhead, leaving only 39,510 lb for cruise
-- Engine-out segment stuck at 25,000 ft (single CFM56-7B engine cannot sustain higher altitude at 164,451 lb)
-- Fleet cost of $120,376 is moderate, but the mission is clearly infeasible
-
-**DC-8** — Worst performer (-1,863 nm shortfall).
-- Highest f_oh (0.260) removes 84,582 lb of the 122,000 lb fuel load as overhead, leaving only 37,418 lb for cruise
-- This is the most extreme manifestation of the calibration compensation issue: k_adj=0.605 makes the cruise model burn ~40% less fuel than reality, so f_oh must remove proportionally more fuel to match published range
-- Engine-out segment on 3 engines achieves 39,500–40,000 ft (the 4-engine configuration gives it more thrust redundancy, so the altitude drop is small)
-- Only burns 542 nm in engine-out before exhausting cruise fuel — the aircraft simply doesn't have enough cruise fuel
-- Result is flagged as **low-confidence** due to extreme calibration parameters
-
 ## Key Modeling Choices and Limitations
 
 ### Choices
 
-1. **Mach number held constant after engine failure.** The aircraft maintains its nominal cruise Mach in the engine-out segment. In practice, a Mach reduction of 2–5% might occur, but modeling this would require a speed optimization loop that doesn't exist in the current framework. The altitude optimizer handles the primary thrust constraint.
+1. **Climb/descent distance credits.** Uses the Path A convention of 200 nm climb credit + 120 nm descent credit, imported from `calibration.py`. This maintains consistency with the calibrated model.
 
-2. **Climb/descent distance credits.** Uses the Path A convention of 200 nm climb credit + 120 nm descent credit, imported from `calibration.py`. This maintains consistency with the calibrated model — the same assumptions used to fit the parameters are used to compute the mission.
+2. **Fuel cost basis.** Cost is computed on total fuel loaded, since all fuel must be purchased regardless of how it's consumed. Fuel price is $5.50/gal Jet-A.
 
-3. **Fuel cost basis.** Cost is computed on total fuel loaded (not just fuel burned), since all fuel must be purchased regardless of whether it's consumed in cruise or lost to overhead. Fuel price is $5.50/gal Jet-A.
-
-4. **Reserve interpretation.** In the f_oh model, reserves are embedded in the overhead fraction — they are not computed separately. The "Reserve remaining" column shows cruise fuel not burned (always 0 here because `step_cruise_range` exhausts all cruise fuel to determine maximum range). For feasible aircraft, the range surplus (1,200+ nm) represents the safety margin — this fuel would go unburned in an actual mission.
+3. **Reserve interpretation.** In the f_oh model, reserves are embedded in the overhead fraction. For feasible aircraft, both "Fuel@Dest" (cruise fuel remaining at 5,050 nm) and range surplus are reported as complementary safety metrics.
 
 ### Limitations
 
 1. **f_oh absorbs calibration residuals**, not just physical non-cruise fuel. This is well-documented (see PHASE2_STEP1_RECONCILIATION.md) and is the reason the DC-8 and A330 results are flagged as low-confidence.
 
-2. **Engine-out drag increment is fixed at +10%** regardless of aircraft type. In reality, the increment depends on the ratio of engine nacelle drag to total drag, rudder deflection required, and other factors specific to each airframe.
+2. **Engine-out drag increment is fixed at +10%** regardless of aircraft type. In reality, the increment depends on nacelle drag, rudder deflection, and other airframe-specific factors.
 
-3. **No diversion modeling.** The mission tests whether the aircraft can fly the full 5,050 nm distance. It does not model alternate airports, holding fuel, or regulatory reserve requirements beyond what's captured in f_oh.
+3. **Mach number is held constant after engine failure.** Standard engine-out procedure involves decelerating 0.02–0.05 Mach below normal cruise to the best-range speed for the degraded configuration. This is a secondary effect compared to the altitude change, but would slightly improve engine-out range for all aircraft. Noted as a known simplification per reviewer feedback.
 
-4. **Step-cruise altitude changes are instantaneous.** The model recomputes optimal altitude at each integration step as weight decreases; actual step-climbs involve ATC coordination and fuel cost for the climb.
+4. **Calibrated CD0 makes engine-out unreliable for three aircraft.** The P-8 (CD0=0.060), A330 (CD0=0.033), and 777 (CD0=0.041) have calibrated drag coefficients that make single-engine flight impossible at all altitudes in the model. This is unphysical — real twin-engine aircraft must demonstrate engine-out cruise capability for certification. The model's engine-out results for these three aircraft should be treated as lower bounds on actual capability.
+
+5. **No diversion modeling.** The mission tests whether the aircraft can fly the full 5,050 nm. It does not model alternate airports, holding fuel, or regulatory reserves beyond what's captured in f_oh.
 
 ## Confidence Assessment
 
 | Aircraft | Confidence | Notes |
 |---|---|---|
-| 767-200ER | **High** | f_oh=0.030 is physical, k_adj=0.969, RMS error 0.0% |
-| 777-200LR | **Medium** | f_oh=0.080 is reasonable, but RMS error 6.5% |
-| GV | **Medium** | f_oh=0.131 is somewhat high; model may overallocate to overhead |
-| P-8 | **Low-Medium** | Derived from 737-900ER, extreme parameters (f_oh=0.180) |
-| A330-200 | **Low** | f_oh=0.000, e>1 unphysical; known calibration edge case |
-| DC-8 | **Low** | k_adj=0.605 (TSFC ~40% low), f_oh=0.260; strong compensation effects |
+| 767-200ER | **High** | CD0=0.018 physical, f_oh=0.030, k_adj=0.969, RMS 0.0%. Engine-out altitude realistic (33k–43k ft). |
+| GV | **Medium** | f_oh=0.131 somewhat high. Engine-out altitude realistic (40k–45k ft). |
+| 777-200LR | **Low** | CD0=0.041 unphysical. Engine-out forced to 10k ft floor. True result likely PASS but model cannot confirm. |
+| P-8 | **Low** | CD0=0.060 unphysical. Engine-out forced to 10k ft floor. |
+| A330-200 | **Low** | CD0=0.033, e>1, f_oh=0.000 all unphysical. Engine-out forced to 10k ft floor. |
+| DC-8 | **Low** | k_adj=0.605 (TSFC ~40% low), f_oh=0.260. Engine-out altitude realistic (3 of 4 engines). |
 
 ## Questions for Reviewer
 
-1. **Reserve reporting:** The f_oh model doesn't produce an explicit reserve figure. For feasible aircraft, the range surplus (1,200+ nm for 767/777) is the meaningful safety metric. Should I add a "fuel remaining at mission distance" calculation by running `_find_fuel_at_distance` up to the required 5,050 nm, so we can report both total capability and the actual fuel state at destination?
+1. **777 engine-out handling:** The 777's calibrated CD0 makes engine-out cruise impossible at all altitudes. The result (-428 nm) is dominated by the 10,000 ft floor penalty. Options: (a) report as-is with strong caveats (current approach); (b) override engine-out altitude to a nominal value (e.g., 25,000 ft) for aircraft where thrust is never sufficient, to avoid the artificial low-altitude penalty; (c) accept that Mission 1 engine-out results are only reliable for aircraft with physically-grounded calibrations (DC-8, GV, 767). Which approach does the reviewer recommend?
 
-2. **777 engine-out altitude ceiling:** The 777 spends its entire engine-out segment at 25,000 ft (the model's minimum search altitude). Is this a concern? The aircraft is 614,000 lb with one engine — physically this seems right, but the 25,000 ft floor is a hard-coded parameter (`h_min=25_000` in `optimal_cruise_altitude`). Should we lower it to see if the 777 would actually be thrust-limited below 25,000 ft?
-
-3. **A330 confidence:** With f_oh=0.000 and Oswald efficiency >1, the A330 calibration is clearly non-physical. The Mission 1 result (FAIL by 417 nm) may be unreliable in either direction. Should we flag it differently than the other infeasible results, or is the current "low-confidence" note sufficient?
-
-4. **GV near-feasibility:** The GV fleet of 8 aircraft misses by only 197 nm. A modest payload reduction (~15%) would likely make it feasible. Is this worth quantifying for the report, or do we treat the 46,000 lb payload requirement as absolute?
+2. **Implication for Missions 2 and 3:** Missions 2 and 3 do not involve engine-out. The calibrated CD0 values will still affect cruise performance at normal operating altitudes with all engines, but the effect is much smaller because full thrust easily exceeds drag. Should we flag the same three aircraft (P-8, A330, 777) as low-confidence across all missions, or is the concern specific to engine-out?
 
 ## Reproduction
 
@@ -150,10 +181,10 @@ python3 -m src.analysis.run_missions
 
 Runtime: ~8 minutes (dominated by calibration). Prints detailed per-aircraft results and summary table.
 
-## Files Changed
+## Files Changed (Cumulative)
 
 | File | Change |
 |---|---|
-| `src/models/performance.py` | Added `drag_multiplier` parameter to `optimal_cruise_altitude()` and passed through from `step_cruise_range()` |
-| `src/models/missions.py` | **New file.** `simulate_mission1_engine_out()`, `_find_fuel_at_distance()`, `_determine_infeasibility()`, `_infeasible_result()` |
-| `src/analysis/run_missions.py` | Updated from stub to functional Mission 1 driver with formatted output |
+| `src/models/performance.py` | (1) Added `drag_multiplier` to `optimal_cruise_altitude()` thrust check; (2) Added `h_min` parameter to `step_cruise_range()` forwarded to altitude optimizer; (3) Changed thrust check from `break` to `continue` to handle non-monotonic thrust-drag regime |
+| `src/models/missions.py` | **New file.** `simulate_mission1_engine_out()` with fuel-at-destination calculation, `_find_fuel_at_distance()`, `_determine_infeasibility()`, `_infeasible_result()` |
+| `src/analysis/run_missions.py` | Updated from stub to functional Mission 1 driver; displays fuel-at-destination for feasible aircraft |

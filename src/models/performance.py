@@ -189,8 +189,14 @@ def optimal_cruise_altitude(weight_lb, mach, wing_area_ft2, CD0, AR, e,
                 thrust_slst_lbf, h, n_engines
             )
             if thrust_avail < conds["drag_lbf"] * drag_multiplier:
-                # Can't sustain flight at this altitude — stop climbing
-                break
+                # Can't sustain flight at this altitude — skip but keep searching.
+                # Unlike CL (monotonically increasing with altitude), the
+                # thrust-drag balance is non-monotonic: at low altitudes high
+                # dynamic pressure can make drag exceed thrust, while at
+                # mid-altitudes the balance may be favorable before thrust
+                # lapse dominates at high altitudes.
+                h += h_step
+                continue
 
         if conds["SR_nm_per_lb"] > best_sr:
             best_sr = conds["SR_nm_per_lb"]
@@ -205,7 +211,8 @@ def step_cruise_range(W_initial_lb, fuel_available_lb, mach, wing_area_ft2,
                       CD0, AR, e, tsfc_ref, k_adj=1.0, ceiling_ft=43_000,
                       thrust_slst_lbf=None, n_engines=None,
                       n_steps=50, fixed_altitude_ft=None,
-                      drag_multiplier=1.0, CL_max_cruise=0.60):
+                      drag_multiplier=1.0, CL_max_cruise=0.60,
+                      h_min=25_000):
     """Compute cruise range using step-cruise method.
 
     Divides the total fuel load into n_steps equal segments. At each step:
@@ -233,6 +240,7 @@ def step_cruise_range(W_initial_lb, fuel_available_lb, mach, wing_area_ft2,
         n_steps: Number of cruise segments (higher = more accurate)
         fixed_altitude_ft: If set, use this altitude instead of optimizing
         drag_multiplier: Drag multiplier (e.g., 1.10 for engine-out)
+        h_min: Minimum altitude for optimizer search (ft, default 25,000)
 
     Returns:
         dict with:
@@ -262,6 +270,7 @@ def step_cruise_range(W_initial_lb, fuel_available_lb, mach, wing_area_ft2,
                 W_start, mach, wing_area_ft2, CD0, AR, e,
                 tsfc_ref, k_adj, ceiling_ft,
                 thrust_slst_lbf, n_engines,
+                h_min=h_min,
                 CL_max_cruise=CL_max_cruise,
                 drag_multiplier=drag_multiplier,
             )
