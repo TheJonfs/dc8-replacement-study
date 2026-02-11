@@ -103,6 +103,23 @@ where f(h) captures altitude variation and g(M) captures Mach variation. The ref
 
 **Impact: Low.** This is standard practice and well-defined.
 
+### C3. Two-Regime Thrust Lapse Model
+**Assumption:** Available thrust lapse with altitude uses two regimes:
+- Below tropopause (≤36,089 ft): `T = T_SLS × (ρ/ρ₀)^0.75` (standard high-bypass turbofan model)
+- Above tropopause (>36,089 ft): `T = T_trop × (ρ/ρ_trop)^2.0` (steeper lapse)
+
+The two regimes are continuous at the tropopause by construction.
+
+**Rationale:** The original single-regime model (`σ^0.75` everywhere) overpredicted thrust above the tropopause, causing all aircraft to reach their published service ceiling on every Mission 2 climb cycle regardless of weight. This prevented the progressive ceiling increase that is the core scientific metric of Mission 2.
+
+In reality, high-bypass turbofan engines lose thrust faster in the isothermal stratosphere than the simple density-ratio model predicts. Above the tropopause, compressor efficiency degrades at very low inlet density, the engine may operate near maximum RPM limits, and bleed/accessory power becomes a larger fraction of available thrust.
+
+The steeper exponent (2.0) was selected to produce physically plausible weight-dependent ceilings: at MTOW, the thrust-limited ceiling is below the published service ceiling, and as fuel burns off, the ceiling rises toward the published limit. The published service ceiling remains as a hard structural/pressurization cap.
+
+**Validation:** At light operating weights (OEW + minimal payload + reserves), the model ceiling approximately matches or slightly exceeds the published ceiling for aircraft with physical calibrations (767-200ER, GV), which is the expected behavior since published ceilings are demonstrated at typical operating weights.
+
+**Impact: Low** for calibration (verified: all calibration RMS errors unchanged, because thrust is used only as a go/no-go viability check in the altitude optimizer, and thrust still exceeds drag at all calibration-relevant cruise altitudes). **Medium** for Mission 2 ceiling progression (this is the primary intended effect). **Low** for Mission 1 (slight reduction in engine-out cruise altitude at the highest altitudes, resulting in ~5% change in range surplus for the 767-200ER — 1,134 nm vs. 1,202 nm previously).
+
 ---
 
 ## D. Performance Modeling

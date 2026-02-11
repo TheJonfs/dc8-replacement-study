@@ -20,7 +20,7 @@ stabilizes.
 The Mach correction captures the ram effect on inlet temperature and the
 velocity-dependent momentum drag of the bypass stream.
 
-See ASSUMPTIONS_LOG.md entries C1, C2.
+See ASSUMPTIONS_LOG.md entries C1, C2, C3.
 
 References:
     - Mattingly, "Elements of Propulsion" (theta^0.5 model)
@@ -35,6 +35,16 @@ from src.models import atmosphere
 # Most published cruise TSFC values are quoted at approximately these conditions
 TSFC_REF_ALT_FT = 35_000   # ft
 TSFC_REF_MACH = 0.80       # Mach number
+
+# --- Thrust lapse model constants ---
+# Two-regime model: different exponents below and above the tropopause.
+# Below tropopause: standard sigma^0.75 for high-bypass turbofans.
+# Above tropopause: steeper lapse (sigma^2.0) because real engines lose
+# thrust faster in the isothermal stratosphere than the simple density-ratio
+# model predicts (compressor efficiency degrades, max RPM limits, etc.).
+# See ASSUMPTIONS_LOG.md entry C3.
+THRUST_LAPSE_EXPONENT_TROPO = 0.75
+THRUST_LAPSE_EXPONENT_STRATO = 2.0
 
 
 def altitude_factor(h_ft, ref_alt_ft=TSFC_REF_ALT_FT):
@@ -130,10 +140,16 @@ def fuel_flow_rate(thrust_lbf, h_ft, mach, tsfc_ref, k_adj=1.0):
 def thrust_available_cruise(thrust_slst_lbf, h_ft, n_engines=1):
     """Estimate available cruise thrust at altitude.
 
-    For turbofans, available thrust lapse approximately follows:
-        T_avail = T_SLS × (ρ/ρ0)^n
+    Two-regime thrust lapse model:
+    - Below tropopause (≤36,089 ft): T = T_SLS × σ^0.75
+      Standard high-bypass turbofan lapse.
+    - Above tropopause (>36,089 ft): T = T_trop × (σ/σ_trop)^2.0
+      Steeper lapse reflecting accelerated thrust decay in the isothermal
+      stratosphere where real engines lose performance faster than the
+      simple density-ratio model predicts.
 
-    where n ≈ 0.7-0.8 for high-bypass turbofans. We use n=0.75.
+    At the tropopause boundary, both regimes give the same thrust value
+    (continuity guaranteed by construction).
 
     This is used for checking whether the aircraft can sustain flight
     at a given altitude and weight, NOT for fuel burn computation
@@ -147,9 +163,23 @@ def thrust_available_cruise(thrust_slst_lbf, h_ft, n_engines=1):
     Returns:
         Total available thrust in lbf
     """
-    THRUST_LAPSE_EXPONENT = 0.75
     sigma = atmosphere.density_ratio(h_ft)
-    thrust_per_engine = thrust_slst_lbf * (sigma ** THRUST_LAPSE_EXPONENT)
+
+    if h_ft <= atmosphere.H_TROPOPAUSE:
+        thrust_per_engine = thrust_slst_lbf * (
+            sigma ** THRUST_LAPSE_EXPONENT_TROPO
+        )
+    else:
+        # Two-regime: steeper lapse above tropopause
+        sigma_trop = atmosphere.density_ratio(atmosphere.H_TROPOPAUSE)
+        thrust_at_trop = thrust_slst_lbf * (
+            sigma_trop ** THRUST_LAPSE_EXPONENT_TROPO
+        )
+        sigma_ratio = sigma / sigma_trop
+        thrust_per_engine = thrust_at_trop * (
+            sigma_ratio ** THRUST_LAPSE_EXPONENT_STRATO
+        )
+
     return thrust_per_engine * n_engines
 
 

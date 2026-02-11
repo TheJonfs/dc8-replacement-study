@@ -645,7 +645,15 @@ def simulate_mission2_sampling(ac, cal, payload_lb=52_000, distance_nm=4_200,
                                   "No mission fuel after reserve deduction")
 
     # --- Step 4: Mission parameters ---
-    ceiling = ac.get("service_ceiling_ft", 43_000)
+    # The hard ceiling is a structural/pressurization limit that the aircraft
+    # must not exceed. The climb target is set higher so that climb_segment()
+    # finds the thrust-limited ceiling via the ROC < 100 ft/min criterion.
+    # At heavy weights, the thrust-limited ceiling will be below the hard cap,
+    # producing the progressive ceiling increase that is the key scientific
+    # output of this mission. At lighter weights, the thrust-limited ceiling
+    # exceeds the hard cap, so the cap governs.
+    hard_ceiling = ac.get("service_ceiling_ft", 43_000)
+    climb_ceiling = hard_ceiling + 5_000
     mach = ac["cruise_mach"]
     mach_climb = mach * 0.95
     mach_descent = mach * 0.90
@@ -670,7 +678,7 @@ def simulate_mission2_sampling(ac, cal, payload_lb=52_000, distance_nm=4_200,
         climb_result = climb_segment(
             W_start_lb=W_current,
             h_start_ft=h_low_ft,
-            h_target_ft=ceiling,
+            h_target_ft=climb_ceiling,
             mach_climb=mach_climb,
             wing_area_ft2=ac["wing_area_ft2"],
             CD0=CD0, AR=ac["aspect_ratio"], e=e,
@@ -679,10 +687,38 @@ def simulate_mission2_sampling(ac, cal, payload_lb=52_000, distance_nm=4_200,
             n_engines=ac["n_engines"],
         )
 
-        climb_fuel = climb_result["fuel_burned_lb"]
-        climb_dist = climb_result["distance_nm"]
-        climb_time = climb_result["time_hr"]
-        cycle_ceiling = climb_result["ceiling_ft"]
+        # Apply hard ceiling cap (structural/pressurization limit).
+        # The thrust-limited ceiling from climb_segment may be below or
+        # above the hard cap. If below, the aircraft is thrust-limited
+        # (heavy weight) — use the climb result as-is. If above, truncate
+        # fuel/distance/time to the hard ceiling using the per-step data.
+        raw_ceiling = climb_result["ceiling_ft"]
+        if raw_ceiling <= hard_ceiling:
+            # Thrust-limited: use climb result as-is
+            climb_fuel = climb_result["fuel_burned_lb"]
+            climb_dist = climb_result["distance_nm"]
+            climb_time = climb_result["time_hr"]
+            cycle_ceiling = raw_ceiling
+        else:
+            # Climbed past the hard cap — truncate at hard_ceiling
+            cycle_ceiling = hard_ceiling
+            climb_fuel = 0.0
+            climb_dist = 0.0
+            climb_time = 0.0
+            for step in climb_result["steps"]:
+                if step["h_end_ft"] <= hard_ceiling:
+                    climb_fuel += step["fuel_lb"]
+                    climb_dist += step["distance_nm"]
+                    climb_time += step["time_hr"]
+                else:
+                    # Partial step crossing the hard ceiling
+                    if step["h_start_ft"] < hard_ceiling:
+                        frac = ((hard_ceiling - step["h_start_ft"])
+                                / (step["h_end_ft"] - step["h_start_ft"]))
+                        climb_fuel += step["fuel_lb"] * frac
+                        climb_dist += step["distance_nm"] * frac
+                        climb_time += step["time_hr"] * frac
+                    break
 
         # Zero-progress guard: if the aircraft can't climb above h_low
         # (e.g., because calibrated CD0 is so high that drag exceeds
