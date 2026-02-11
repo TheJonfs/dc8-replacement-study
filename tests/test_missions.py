@@ -616,5 +616,33 @@ class TestMission3LowAltitude:
         result = simulate_mission3_low_altitude(ac, cal, payload_lb=30_000,
                                                  duration_hr=8.0)
         assert result["feasible"] is False
+        # per_aircraft may be None (reserves exceed fuel) or have short endurance
         pa = result["per_aircraft"]
-        assert pa["endurance_hr"] < 8.0
+        if pa is not None:
+            assert pa["endurance_hr"] < 8.0
+
+    def test_fuel_loading_is_mission_sized(self):
+        """Fuel loaded should be much less than max fuel for endurance missions.
+
+        The iterative fuel sizing should load only enough fuel for 8 hours
+        plus reserves, not fill the tanks to max capacity. For a 767-class
+        aircraft with 160,000 lb max fuel, the 8-hour endurance burn should
+        be well under 100,000 lb.
+        """
+        ac = _make_synth_aircraft()  # max_fuel=160,000
+        cal = _make_synth_calibration()
+        result = simulate_mission3_low_altitude(ac, cal, payload_lb=30_000,
+                                                 duration_hr=8.0)
+        pa = result["per_aircraft"]
+        assert pa["total_fuel_lb"] < pa["max_fuel_available_lb"], (
+            f"Fuel loaded ({pa['total_fuel_lb']:,.0f}) should be less than "
+            f"max fuel ({pa['max_fuel_available_lb']:,.0f}) for endurance mission"
+        )
+        # Fuel loaded should be reasonably close to fuel burned + reserves
+        overhead = pa["total_fuel_lb"] - pa["fuel_burned_lb"] - pa["reserve_fuel_lb"]
+        assert overhead >= 0, "Fuel loaded should cover burn + reserves"
+        # Overhead (margin) should be small — less than 10% of burn
+        assert overhead < 0.10 * pa["fuel_burned_lb"], (
+            f"Fuel margin ({overhead:,.0f}) too large relative to burn "
+            f"({pa['fuel_burned_lb']:,.0f})"
+        )
