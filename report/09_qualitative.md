@@ -1,0 +1,98 @@
+# 9. Qualitative Factors
+
+The quantitative performance analysis presented in Sections 5-8 addresses range, payload, fuel consumption, and cost. However, several qualitative factors raised in interviews with ASP scientists and operations personnel influence the replacement decision in ways that numerical modeling cannot capture. This section maps those factors to the candidate aircraft.
+
+## 9.1 Altitude Capability
+
+**Scientist priority**: "Flying higher is the single most desirable capability improvement."
+
+The current DC-8 rarely reaches 40,000 ft until late in a flight when fuel burn has reduced weight. Scientists strongly desire a platform capable of DC-8-type measurements at altitudes up to 50,000 ft.
+
+| Aircraft | Service Ceiling (ft) | Peak Mission 2 Ceiling (ft) |
+|---|---|---|
+| GV | 51,000 | 47,000 |
+| 767-200ER | 43,100 | 43,100 |
+| 777-200LR | 43,100 | 43,100 |
+| DC-8-72 | 42,000 | 42,000 |
+| A330-200 | 41,100 | 41,100 |
+| P-8 | 41,000 | 40,000 |
+
+The GV is the only candidate with a service ceiling above 50,000 ft. The 767 and 777 reach 43,100 ft --- a meaningful improvement over the DC-8's 42,000 ft but well short of 50,000 ft. No single large aircraft in the study approaches the 50,000 ft goal.
+
+The 767's progressive ceiling (41,000 to 43,100 ft as fuel burns off) demonstrates the same behavior scientists value in the DC-8 --- the ability to reach higher altitudes later in the mission.
+
+## 9.2 Fuselage Configuration
+
+**Scientist priority**: The DC-8's long narrow-body fuselage is preferred. Scientists sit along the walls near their instruments; a wider central aisle would be wasted space.
+
+| Aircraft | Fuselage Type | Approx. Interior Width |
+|---|---|---|
+| DC-8-72 | Narrow-body (longest commercial) | 11.5 ft |
+| GV | Narrow-body (small) | 7.3 ft |
+| P-8 | Narrow-body | 11.6 ft |
+| 767-200ER | Semi-wide-body | 15.0 ft |
+| A330-200 | Wide-body | 17.0 ft |
+| 777-200LR | Wide-body | 19.3 ft |
+
+The P-8 inherits the 737's fuselage width, which is very close to the DC-8's. The 767, while wider, retains a semi-narrow-body character that does not waste excessive floor space. Scientists noted that a wider fuselage might actually benefit larger campaigns by providing more flexible payload configuration and better emergency exit access. The A330 and 777 are substantially wider; whether the extra width is beneficial or wasteful depends on the campaign configuration.
+
+The DC-8 features the longest commercially manufactured narrow-body fuselage, which scientists exploit for spatially separated simultaneous measurements. Among the candidates, the 767 offers similar fuselage length. The P-8 (737-derived) is considerably shorter, which could limit the number of instruments that can be separated along the fuselage.
+
+## 9.3 Engine Redundancy
+
+**Scientist concern**: Some investigators expressed concern about twin-engine reliability versus the DC-8's four engines.
+
+Two perspectives emerged:
+
+1. Losing one of four engines allows most experiments to continue on remaining engine power.
+2. Any engine loss should cease all experimentation and focus on safe return.
+
+The Mission 1 analysis (Section 5.4) demonstrates that engine count is less important than total capability: the twin-engine 767 completes the engine-out mission while the four-engine DC-8 does not. Modern ETOPS certification ensures that twin-engine aircraft are designed and approved for extended over-water operations on a single engine.
+
+All candidates except the DC-8 are twin-engine. This reflects the commercial aviation industry's near-universal adoption of twin-engine designs, driven by lower fuel consumption, maintenance costs, and acquisition cost per unit of thrust.
+
+## 9.4 Payload Configuration
+
+**Scientist priority**: Maximum payload weight is less constraining than available floor space and emergency exit access for large campaigns. Standard equipment rack height is limited to 54 inches by overhead bins.
+
+The 767's wider fuselage (compared to the DC-8) could accommodate taller equipment racks if overhead bins are removed. The P-8, with its 737-class fuselage, would face similar rack height constraints as the DC-8. The wide-body candidates (A330, 777) would impose minimal height restrictions.
+
+Some DC-8 instruments exceed 2,000 lb individually. All candidates can accommodate individual instruments of this weight; the limiting factor is aggregate payload capacity, which favors the larger aircraft.
+
+## 9.5 Structural Modification Amenability
+
+**Scientist priority**: A structurally over-designed fuselage amenable to cutouts and externally mounted equipment is strongly desired.
+
+The DC-8's fuselage has been extensively modified with sensor windows, atmospheric sampling ports, and external equipment mounts. A replacement aircraft must support similar modifications. Key factors include:
+
+- **Fuselage cutouts**: Require reinforcement of the surrounding structure. Aircraft with thicker fuselage skins and closer frame spacing are more amenable.
+- **Wing hard points**: Desirable for externally mounted pods and instruments. Military-derived aircraft (P-8) may have existing provisions.
+- **T-tail avoidance**: The DC-8's T-tail obstructs upper-hemisphere sensor views and interferes with solar flux measurements. All candidates except the DC-8 have conventional low-mounted horizontal tails.
+- **Cargo doors**: Larger doors save days of instrument assembly/disassembly time when configuring for campaigns.
+
+The 767 and P-8 both have conventional tail configurations and Boeing-standard construction amenable to structural modification. The P-8 already incorporates military modifications (sensor bays, wing hardpoints) that could serve as a starting point for science adaptations.
+
+## 9.6 Other Operational Factors
+
+- **Aft lavatory**: At least one aft lavatory is non-negotiable. The forward lavatory is off-limits during sampling to avoid contaminating atmospheric samples measured downstream. All candidates can accommodate this requirement.
+
+- **Crew and training**: Newer aircraft types (767, A330, 777) have larger pilot populations, better simulator availability, and more established training pipelines --- directly addressing the DC-8's crew shortage problem.
+
+- **Spare parts and maintenance**: Current-production or recently-produced aircraft benefit from established parts supply chains. The 767 is no longer in production for passenger variants but remains in production as the 767-based KC-46 tanker, maintaining the parts supply chain.
+
+- **Ground handling**: Standard commercial aircraft (767, A330, 777) are supported by ground handling equipment at airports worldwide. The DC-8's non-standard configuration creates ground handling challenges at destination airports.
+
+## 9.7 Qualitative Assessment Summary
+
+| Factor | Favors |
+|---|---|
+| Altitude capability | GV (51,000 ft), then 767/777 (43,100 ft) |
+| Fuselage configuration | P-8 (closest to DC-8 width), then 767 |
+| Engine redundancy | All twins equivalent; 767 demonstrated engine-out mission |
+| Payload flexibility | 767 (good width/length balance) |
+| Structural modification | 767 and P-8 (Boeing conventional, P-8 has military mods) |
+| T-tail avoidance | All candidates (DC-8 is the only T-tail) |
+| Crew/training availability | 767, A330, 777 (large pilot populations) |
+| Parts supply chain | 767 (KC-46 production), P-8 (military production) |
+
+The qualitative factors reinforce the 767's quantitative ranking. Its fuselage configuration, structural amenability, active parts supply chain, and absence of T-tail address the operational concerns raised by scientists and flight crews.
