@@ -1,0 +1,133 @@
+\subsection{Mission Definition}
+
+\begin{table}[htbp]
+  \centering
+  \caption[Mission 1 parameters]{Mission 1 definition parameters.}
+  \label{tab:m1-definition}
+  \begin{tabular}{ll}
+    \toprule
+    Parameter & Value \\
+    \midrule
+    Route & Santiago, Chile (SCEL) to Palmdale, CA (KPMD) \\
+    Distance & 5,050 nm \\
+    Payload & 46,000 lb \\
+    Profile & Nominal cruise with engine failure at midpoint \\
+    Engine failure & Single engine loss at 2,525 nm \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+This mission is the most demanding in the study. It combines a long range requirement (5,050 nm) with a heavy payload (46,000 lb) and the additional challenge of completing the second half of the mission on reduced thrust. The mission directly addresses the engine-out concern raised by scientists: can the aircraft safely complete a long over-water transit after losing an engine at the worst possible point?
+
+The fuel budget uses the $f_{oh}$ hybrid model, in which non-cruise fuel overhead (taxi, climb, descent, reserves) is captured by the calibrated overhead fraction.
+
+\subsection{Results}
+
+\subsubsection{Feasibility Assessment}
+
+\begin{table}[htbp]
+  \centering
+  \caption[Mission 1 feasibility]{Mission 1 feasibility assessment for all candidate aircraft.}
+  \label{tab:m1-feasibility}
+  \begin{tabular}{llccrc}
+    \toprule
+    Aircraft & Status & Confidence & $n$ & Fuel at Dest.\ (lb) & Range Achieved (nm) \\
+    \midrule
+    \textbf{767-200ER} & \textbf{PASS} & \textbf{High} & 1 & 25,732 & $>$5,050 \\
+    777-200LR & LIKELY PASS & Low & 1 & --- & $>$5,050* \\
+    A330-200 & UNCERTAIN & Low & 1 & --- & --- \\
+    GV & FAIL & Medium & 8 & --- & 4,855 \\
+    P-8 & FAIL & Low & 2 & --- & 3,276 \\
+    DC-8-72 & FAIL & Low & 1 & --- & 3,187 \\
+    \bottomrule
+  \end{tabular}
+
+  \smallskip
+  {\footnotesize *Model suggests feasibility but calibration artifacts ($C_{D_0} = 0.041$) make the engine-out segment unreliable.}
+\end{table}
+
+The \textbf{767-200ER is the only aircraft that demonstrably passes} Mission~1 with high model confidence. It arrives at KPMD with 25,732~lb of cruise fuel remaining---a substantial margin that provides additional reserves or diversion capability.
+
+The 777-200LR is assessed as LIKELY PASS: the model produces a feasible result, but the unphysical calibration parameters (particularly the inflated $C_{D_0}$) make the engine-out altitude and fuel consumption predictions unreliable. In reality, the 777's massive GE90 engines likely provide adequate single-engine performance for this mission, but the model cannot confirm this with confidence.
+
+The DC-8 fails by 1,863~nm, confirming the motivation for this study: the current platform cannot complete demanding long-range missions with engine contingencies.
+
+\subsubsection{Weight Breakdown}
+
+The weight breakdown for Mission~1 is shown in \cref{fig:weight-breakdown-m1}.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.85\textwidth]{figures/weight_breakdown_m1.png}
+  \caption[Mission 1 weight breakdown]{Weight breakdown comparison for Mission~1 (long-range transport with engine-out). Stacked bars show OEW, payload, mission fuel, and reserve fuel for each aircraft. Fleet aggregates are shown for the GV~($8\times$) and P-8~($2\times$).}
+  \label{fig:weight-breakdown-m1}
+\end{figure}
+
+Key observations:
+\begin{itemize}
+  \item The 767-200ER (387,000~lb takeoff weight) carries 46,000~lb of payload and 162,000~lb of fuel while remaining within its 395,000~lb MTOW.
+  \item The GV requires 8 aircraft at 91,000~lb each, with an aggregate fleet weight of 724,000~lb---nearly double the single 767.
+  \item The 777-200LR's 691,000~lb takeoff weight reflects its much higher OEW (320,000~lb), which imposes a fuel consumption penalty even though the aircraft has ample range capability.
+\end{itemize}
+
+\subsubsection{Altitude and Speed Profiles}
+
+\cref{fig:profile-m1-altitude} shows the altitude profile for all six aircraft. \cref{fig:profile-m1-mach} shows the Mach profile.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.85\textwidth]{figures/profile_m1_altitude.png}
+  \caption[Mission 1 altitude profile]{Altitude profile for Mission~1. The engine-out event at 2,525~nm produces a discontinuity in cruise altitude for all aircraft. Twin-engine aircraft lose 50\% of thrust; the four-engine DC-8 loses 25\%.}
+  \label{fig:profile-m1-altitude}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.85\textwidth]{figures/profile_m1_mach.png}
+  \caption[Mission 1 Mach profile]{Mach number profile for Mission~1. Each aircraft cruises at its calibrated optimum Mach number, which remains constant throughout the mission (the model optimizes altitude rather than speed).}
+  \label{fig:profile-m1-mach}
+\end{figure}
+
+The altitude profile reveals the engine-out discontinuity at 2,525~nm:
+
+\begin{itemize}
+  \item \textbf{767-200ER}: Cruises at 35,000--38,000~ft pre-failure. After engine loss, descends to approximately 33,000~ft and gradually climbs back to 38,000~ft as fuel burns off. Crosses KPMD at 5,050~nm with ample range remaining.
+  \item \textbf{GV}: Cruises highest pre-failure (43,000--46,000~ft, exploiting its high service ceiling). After engine loss, descends to approximately 37,000~ft. However, it exhausts fuel before reaching KPMD.
+  \item \textbf{DC-8}: The four-engine configuration loses only 25\% of thrust (versus 50\% for twin-engine aircraft), resulting in a more modest altitude drop. However, its total fuel load is insufficient for the 5,050~nm distance.
+  \item \textbf{P-8, A330-200, 777-200LR}: These aircraft drop to the 10,000~ft altitude floor after engine failure. This is a calibration artifact: their unphysical $C_{D_0}$ values (0.034--0.060) produce drag that exceeds available thrust on one engine at all cruise altitudes. Real aircraft of these types are ETOPS-certified for extended single-engine flight at normal altitudes.
+\end{itemize}
+
+The Mach profile shows constant cruise Mach for each aircraft (the model optimizes altitude rather than speed): 777-200LR at Mach~0.84, DC-8/A330/GV at 0.82, 767 at 0.80, and P-8 at 0.785.
+
+\subsection{Fuel Cost}
+
+\begin{table}[htbp]
+  \centering
+  \caption[Mission 1 fuel cost]{Fuel cost comparison for Mission~1. Cost metrics are reported only for aircraft that can complete the mission.}
+  \label{tab:m1-fuel-cost}
+  \begin{tabular}{llcrc}
+    \toprule
+    Aircraft & Status & $n$ & Total Fuel Cost & \$/klb-nm \\
+    \midrule
+    \textbf{767-200ER} & \textbf{PASS} & 1 & \$132,985 & \textbf{\$0.57} \\
+    777-200LR & LIKELY PASS & 1 & \$267,037 & \$1.15 \\
+    DC-8 & FAIL & 1 & --- & --- \\
+    GV & FAIL & 8 & --- & --- \\
+    P-8 & FAIL & 2 & --- & --- \\
+    A330-200 & UNCERTAIN & 1 & --- & --- \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Cost metrics are reported only for aircraft that can complete the mission. The 767's \$0.57/klb-nm is the benchmark; the 777's \$1.15/klb-nm is approximately double, reflecting its higher OEW and fuel consumption.
+
+\subsection{Engine-Out: Two-Engine vs.\ Four-Engine}
+
+Mission~1 was designed to probe the engine redundancy concern raised by scientists. The results illuminate the trade-off:
+
+\begin{itemize}
+  \item The DC-8 retains 75\% of thrust after losing one of four engines, experiencing only a modest altitude drop. However, it fails the mission on range---it simply cannot carry enough fuel.
+  \item The 767 loses 50\% of thrust but maintains cruise altitude above 33,000~ft and completes the mission with substantial reserves. Its higher fuel capacity and more efficient engines compensate for the greater thrust loss.
+\end{itemize}
+
+The conclusion is that for this mission profile, fuel capacity and engine efficiency matter more than engine count. A twin-engine aircraft with adequate range capability outperforms a four-engine aircraft with insufficient fuel capacity, even in an engine-out scenario.

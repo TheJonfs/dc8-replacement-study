@@ -1,0 +1,99 @@
+% Conclusions and Recommendations
+% Input file for main.tex — \section{} header is defined there
+
+\subsection{Principal Findings}
+\label{subsec:principal-findings}
+
+This study evaluated five candidate aircraft against the DC-8-72 Flying Laboratory across three representative airborne science missions. The analysis yields the following principal findings:
+
+\noindent\textbf{1. The Boeing 767-200ER is the strongest single-aircraft replacement candidate.}
+
+The 767 is the only aircraft that passes all three missions with high model confidence. It demonstrates:
+\begin{itemize}
+    \item Mission~1 (engine-out): PASS with 25,732~lb of fuel remaining at destination, maintaining cruise altitude above 33,000~ft throughout the engine-out segment.
+    \item Mission~2 (vertical sampling): PASS with 18 climb-descend cycles, progressive ceiling from 41,000 to 43,100~ft.
+    \item Mission~3 (low-altitude endurance): PASS with reliable fuel consumption (9,865~lb/hr average).
+    \item Cost efficiency of \$0.57--\$1.32/klb-nm across missions, consistently the best among aircraft with reliable calibrations.
+\end{itemize}
+
+\noindent\textbf{2. The Boeing P-8 Poseidon is the strongest fleet-based alternative.}
+
+The P-8 cannot complete Mission~1 but offers competitive performance on Missions~2 and~3:
+\begin{itemize}
+    \item Mission~2: 3-aircraft fleet at \$0.83/klb-nm with progressive ceiling (38,000 to 40,000~ft).
+    \item Mission~3: 2-aircraft fleet at \$1.02/klb-nm, the cheapest fleet option.
+    \item Its 737-derived narrow-body fuselage closely matches the DC-8's width.
+    \item Existing military production maintains parts supply and supports structural modification.
+\end{itemize}
+
+\noindent\textbf{3. The DC-8 cannot perform the most demanding missions, confirming the need for replacement.}
+
+The DC-8 fails Mission~1 by 1,863~nm, demonstrating that long-range engine-out missions exceed its capability. While the DC-8 passes Missions~2 and~3, its age-related operational challenges (crew shortages, spare parts, ground handling) compound the performance limitation.
+
+\noindent\textbf{4. Calibration quality limits the quantitative conclusions for four of six aircraft.}
+
+Only the 767-200ER and G-V produce calibration parameters within physical bounds. The DC-8, P-8, A330-200, and 777-200LR exhibit at least one unphysical parameter, making their absolute fuel consumption and cost numbers unreliable. The qualitative feasibility conclusions (pass/fail) are more robust than the quantitative cost metrics.
+
+\noindent\textbf{5. Mission-specific modeling innovations are critical for fair comparison.}
+
+Three modeling choices significantly affected results:
+\begin{itemize}
+    \item \textbf{Engine-out modeling} (Mission~1): Properly models the altitude and fuel consumption penalty of losing an engine, discriminating between aircraft that can and cannot complete the mission.
+    \item \textbf{Progressive ceiling} (Mission~2): The two-regime thrust lapse model enables physically realistic ceiling increases as fuel burns off, capturing the scientists' top priority of flying higher.
+    \item \textbf{Mission-sized fuel loading} (Mission~3): Iterative fuel sizing prevents penalizing aircraft for fuel capacity they don't need, reducing the 777's cost metric by 60\%.
+\end{itemize}
+
+\subsection{Recommendations}
+\label{subsec:recommendations}
+
+\noindent\textbf{Primary Recommendation: Boeing 767-200ER.}
+
+The 767-200ER is recommended as the primary replacement candidate based on:
+\begin{itemize}
+    \item \textbf{Performance}: Only aircraft passing all missions with high confidence
+    \item \textbf{Cost efficiency}: Best reliable \$/klb-nm on every mission
+    \item \textbf{Fuselage}: Semi-wide-body with adequate length for spatially separated instruments
+    \item \textbf{Configuration}: Conventional low-wing, underwing-engine, conventional-tail layout (no T-tail obstruction)
+    \item \textbf{Structural amenability}: Boeing conventional construction supports cutouts and external mounts
+    \item \textbf{Supply chain}: KC-46 tanker production maintains Boeing 767 parts availability
+    \item \textbf{Crew availability}: Large 767 pilot population with established training infrastructure
+\end{itemize}
+
+\noindent\textbf{Secondary Recommendation: Boeing P-8 Poseidon (Fleet Role).}
+
+The P-8 merits consideration as a complement to a 767 primary platform or as a focused-mission aircraft for campaigns not requiring Mission~1-class range:
+\begin{itemize}
+    \item Competitive fleet costs on shorter missions
+    \item Narrow-body fuselage matches DC-8 instrument configuration
+    \item Military production line provides modified airframes and structural provisions
+    \item 2--3 aircraft fleet is operationally feasible (unlike G-V's 6--9 aircraft)
+\end{itemize}
+
+\noindent\textbf{Not Recommended as Primary Replacement.}
+
+\begin{itemize}
+    \item \textbf{Gulfstream G-V}: Excellent altitude capability (47,000~ft) but fleet sizes of 6--9 aircraft are impractical for routine campaign operations.
+    \item \textbf{Airbus A330-200}: Highest Mission~3 cost, uncertain Mission~1 status, and low model confidence. The A330's high OEW penalizes it on every mission.
+    \item \textbf{Boeing 777-200LR}: Likely capable but the most expensive single-aircraft option by a substantial margin. Its capability far exceeds the mission requirements, suggesting it is overspecified for the science mission set.
+\end{itemize}
+
+\subsection{Caveats and Future Work}
+\label{subsec:caveats-future-work}
+
+This study is limited to fuel-based performance and cost comparisons using publicly available data. A complete replacement evaluation should also consider:
+
+\begin{itemize}
+    \item \textbf{Acquisition cost and availability} of retired or in-service airframes
+    \item \textbf{Modification cost} for laboratory conversion, sensor installations, and structural reinforcements
+    \item \textbf{Certification requirements} for research operations, including experimental and supplemental type certificates
+    \item \textbf{Operating cost beyond fuel}, including crew, maintenance, insurance, and airport fees
+    \item \textbf{Fleet transition logistics}, including timeline, crew transition training, and parallel operations during the transition period
+\end{itemize}
+
+The calibration quality limitations identified in this study could be addressed through:
+
+\begin{itemize}
+    \item \textbf{Higher-fidelity performance models} (e.g., NASA's Flight Optimization System or equivalent)
+    \item \textbf{Direct collaboration with manufacturers} to obtain more detailed performance data
+    \item \textbf{Flight test data} from candidate aircraft operating at the specific conditions studied here
+\end{itemize}
