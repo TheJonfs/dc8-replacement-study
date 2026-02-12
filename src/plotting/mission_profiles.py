@@ -23,7 +23,8 @@ def plot_mission1_altitude(results, output_path):
 
     Shows all aircraft on a single overlay. A vertical dashed line marks
     the engine failure point at 2,525 nm. The altitude drop after engine
-    failure is the key feature.
+    failure is the key feature. Aircraft with unphysical calibrations
+    that drop to the 10,000 ft floor are annotated.
 
     Args:
         results: dict keyed by designation -> mission 1 result dict
@@ -33,6 +34,9 @@ def plot_mission1_altitude(results, output_path):
         Output file path.
     """
     fig, ax = plt.subplots(figsize=(14, 7))
+
+    # Track which aircraft drop to 10k ft floor (calibration artifact)
+    artifact_aircraft = []
 
     for d in STUDY_ORDER:
         r = results[d]
@@ -63,6 +67,11 @@ def plot_mission1_altitude(results, output_path):
             ax.plot(distances, alt_kft, '-', color=color, linewidth=1.8,
                     label=d, alpha=0.9)
 
+            # Check if this aircraft drops to the 10k ft floor
+            seg2_alts = [s["altitude_ft"] for s in seg2["segments"]]
+            if seg2_alts and min(seg2_alts) <= 10_500:
+                artifact_aircraft.append(d)
+
     # Engine failure marker
     ax.axvline(x=2525, color='red', linestyle='--', alpha=0.6, linewidth=1.5)
     ax.text(2525, ax.get_ylim()[1] * 0.02, "  Engine\n  Failure",
@@ -72,6 +81,20 @@ def plot_mission1_altitude(results, output_path):
     ax.axvline(x=5050, color='green', linestyle='--', alpha=0.4, linewidth=1)
     ax.text(5050, ax.get_ylim()[1] * 0.02, "  KPMD",
             color='green', fontsize=9, alpha=0.6, va='bottom')
+
+    # Annotation for 10,000 ft floor artifact
+    if artifact_aircraft:
+        artifact_names = ", ".join(artifact_aircraft)
+        ax.annotate(
+            f"Calibration artifact — {artifact_names}\n"
+            f"drop to altitude floor due to\n"
+            f"unphysical CD₀ (see report)",
+            xy=(3500, 10), fontsize=8.5, color="#555555",
+            style='italic',
+            bbox=dict(boxstyle='round,pad=0.4', facecolor='lightyellow',
+                      edgecolor='#cccccc', alpha=0.9),
+            ha='center', va='bottom',
+        )
 
     ax.set_xlabel("Distance from Departure (nm)", fontsize=12)
     ax.set_ylabel("Cruise Altitude (1,000 ft)", fontsize=12)

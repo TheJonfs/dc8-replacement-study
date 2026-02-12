@@ -1,7 +1,8 @@
-"""Generate all synthesis plots (Deliverables 3 and 5).
+"""Generate all synthesis plots (Deliverables 3, 4, and 5).
 
 Produces:
   - Weight breakdown stacked bars for all three missions (Deliverable 3)
+  - Fuel cost comparison grouped bar chart (Deliverable 4)
   - Altitude and Mach profiles for Missions 1 and 2 (Deliverable 5)
 
 Requires calibration (~12 min) and mission simulation to produce the
@@ -14,6 +15,7 @@ Outputs:
     outputs/plots/weight_breakdown_m1.png
     outputs/plots/weight_breakdown_m2.png
     outputs/plots/weight_breakdown_m3.png
+    outputs/plots/fuel_cost_comparison.png
     outputs/plots/profile_m1_altitude.png
     outputs/plots/profile_m1_mach.png
     outputs/plots/profile_m2_altitude.png
@@ -34,6 +36,7 @@ from src.plotting.mission_profiles import (
     plot_mission2_altitude,
     plot_mission2_ceiling_progression,
 )
+from src.plotting.fuel_cost import plot_fuel_cost_comparison
 
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'outputs', 'plots')
 
@@ -71,6 +74,9 @@ def run_all_synthesis_plots(all_ac=None, calibrations=None):
         m1_results,
         "Mission 1 — Engine-Out Transport (SCEL→KPMD, 5,050 nm, 46,000 lb)",
         os.path.join(OUTPUT_DIR, "weight_breakdown_m1.png"),
+        fuel_budget_note="Fuel budget: f_oh hybrid model. "
+                         "Remaining fuel = unburned cruise fuel after full range.",
+        remaining_fuel_label="Remaining Fuel",
     )
     output_paths.append(path)
 
@@ -78,6 +84,8 @@ def run_all_synthesis_plots(all_ac=None, calibrations=None):
         m2_results,
         "Mission 2 — Vertical Sampling (NZCH→SCCI, 4,200 nm, 52,000 lb)",
         os.path.join(OUTPUT_DIR, "weight_breakdown_m2.png"),
+        fuel_budget_note="Fuel budget: explicit reserves "
+                         "(5% contingency + 200 nm alternate + 30 min hold).",
     )
     output_paths.append(path)
 
@@ -85,6 +93,8 @@ def run_all_synthesis_plots(all_ac=None, calibrations=None):
         m3_results,
         "Mission 3 — Low-Altitude Smoke Survey (8 hr, 30,000 lb, 1,500 ft)",
         os.path.join(OUTPUT_DIR, "weight_breakdown_m3.png"),
+        fuel_budget_note="Fuel budget: mission-sized loading "
+                         "(iterative sizing for 8 hr + reserves).",
     )
     output_paths.append(path)
 
@@ -112,6 +122,15 @@ def run_all_synthesis_plots(all_ac=None, calibrations=None):
     path = plot_mission2_ceiling_progression(
         m2_results,
         os.path.join(OUTPUT_DIR, "profile_m2_ceiling.png"),
+    )
+    output_paths.append(path)
+
+    # --- Deliverable 4: Fuel Cost Comparison ---
+    print("\nGenerating fuel cost comparison plot (Deliverable 4)...")
+
+    path = plot_fuel_cost_comparison(
+        m1_results, m2_results, m3_results,
+        os.path.join(OUTPUT_DIR, "fuel_cost_comparison.png"),
     )
     output_paths.append(path)
 
