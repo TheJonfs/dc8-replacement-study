@@ -93,17 +93,26 @@ def _build_bar_data(results):
     return bars
 
 
-def plot_weight_breakdown(results, mission_title, output_path):
+def plot_weight_breakdown(results, mission_title, output_path,
+                          fuel_budget_note=None, remaining_fuel_label=None):
     """Plot stacked weight breakdown bar chart for one mission.
 
     Args:
         results: dict keyed by designation -> mission result dict
         mission_title: Title string for the plot
         output_path: Full path for the output PNG file
+        fuel_budget_note: Optional one-line note about fuel budget method,
+            displayed below the x-axis label.
+        remaining_fuel_label: Label for the reserve/remaining fuel band.
+            Defaults to "Reserve Fuel". Use "Remaining Fuel" for Mission 1
+            where the f_oh model bundles reserves into overhead.
 
     Returns:
         Output file path.
     """
+    if remaining_fuel_label is None:
+        remaining_fuel_label = "Reserve Fuel"
+
     bars = _build_bar_data(results)
     if not bars:
         return None
@@ -127,7 +136,7 @@ def plot_weight_breakdown(results, mission_title, output_path):
     p3 = ax.bar(x, mission_fuel, width, bottom=oew + payload,
                 label="Mission Fuel", color="#ff7f0e", edgecolor="white")
     p4 = ax.bar(x, reserve_fuel, width, bottom=oew + payload + mission_fuel,
-                label="Reserve Fuel", color="#d62728", edgecolor="white",
+                label=remaining_fuel_label, color="#d62728", edgecolor="white",
                 alpha=0.7)
 
     # Hatch pattern for aggregate bars
@@ -152,7 +161,12 @@ def plot_weight_breakdown(results, mission_title, output_path):
     ax.set_xticklabels(labels, fontsize=9)
     ax.legend(fontsize=10, loc='upper left')
     ax.grid(True, alpha=0.2, axis='y')
-    ax.set_ylim(0, max(totals) * 1.12)
+    ax.set_ylim(0, max(totals) * 1.15)
+
+    # Fuel budget note below chart
+    if fuel_budget_note:
+        fig.text(0.5, -0.02, fuel_budget_note,
+                 ha='center', fontsize=8.5, style='italic', color='#555555')
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     fig.savefig(output_path, dpi=150, bbox_inches='tight')
