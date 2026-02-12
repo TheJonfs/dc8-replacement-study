@@ -1,0 +1,329 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% NASA Technical Memorandum
+% DC-8 Replacement Aircraft Performance Study
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\documentclass[10pt,letterpaper]{article}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% PACKAGES
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Page layout
+\usepackage[margin=1in,top=0.75in,bottom=0.75in]{geometry}
+
+% Font encoding and Times-like font
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{mathptmx}
+
+% Graphics and figures
+\usepackage{graphicx}
+\graphicspath{{figures/}}
+
+% Tables
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{longtable}
+
+% Math
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% Captions
+\usepackage[font={small},labelfont={bf},labelsep=period]{caption}
+\captionsetup[figure]{position=below}
+\captionsetup[table]{position=above,skip=6pt}
+
+% Hyperlinks (load near end)
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue,pdfpagelabels]{hyperref}
+
+% Cross-references (must load after hyperref)
+\usepackage[capitalise,noabbrev]{cleveref}
+
+% Bibliography
+\usepackage[backend=biber,style=numeric,sorting=none]{biblatex}
+\addbibresource{references.bib}
+
+% Headers/footers
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+
+% Section formatting
+\usepackage{titlesec}
+\titleformat{\section}{\normalfont\large\bfseries}{\thesection.}{0.5em}{}
+\titleformat{\subsection}{\normalfont\normalsize\bfseries}{\thesubsection}{0.5em}{}
+\titleformat{\subsubsection}{\normalfont\normalsize\bfseries}{\thesubsubsection}{0.5em}{}
+
+% TOC and list formatting
+\usepackage{tocloft}
+\setcounter{tocdepth}{3}  % Only show down to subsubsection in TOC
+\renewcommand{\cftsecleader}{\cftdotfill{\cftdotsep}}
+\setlength{\cftbeforesecskip}{3pt}
+
+% LoF/LoT formatting
+\renewcommand{\cftfigpresnum}{Figure }
+\renewcommand{\cftfigaftersnum}{:}
+\setlength{\cftfignumwidth}{5.5em}
+\renewcommand{\cfttabpresnum}{Table }
+\renewcommand{\cfttabaftersnum}{:}
+\setlength{\cfttabnumwidth}{5em}
+
+% Misc
+\usepackage{xcolor}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% DOCUMENT METADATA
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newcommand{\doctitle}{DC-8 Replacement Aircraft Performance Study}
+\newcommand{\docsubtitle}{Comparative Analysis of Candidate Platforms\\for NASA Airborne Science Missions}
+\newcommand{\docmonth}{February}
+\newcommand{\docyear}{2026}
+\newcommand{\docnumber}{NASA/TM---2026-XXXXXX}
+\newcommand{\doccenter}{Langley Research Center}
+\newcommand{\doclocation}{Hampton, Virginia}
+
+\newcommand{\docauthorA}{Christopher A. Jones}
+\newcommand{\docaffiliationA}{NASA Langley Research Center, Hampton, Virginia}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% CUSTOM COMMANDS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Abbreviations
+\newcommand{\nasa}{NASA}
+\newcommand{\asp}{ASP}
+\newcommand{\oew}{OEW}
+\newcommand{\mtow}{MTOW}
+\newcommand{\tsfc}{TSFC}
+
+% Units and formatting
+\newcommand{\klbnm}{\$/klb\textperiodcentered nm}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% PAGE STYLES
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\fancypagestyle{nasatitle}{
+    \fancyhf{}
+    \renewcommand{\headrulewidth}{0pt}
+    \renewcommand{\footrulewidth}{0pt}
+}
+
+\fancypagestyle{nasafront}{
+    \fancyhf{}
+    \fancyfoot[C]{\thepage}
+    \renewcommand{\headrulewidth}{0pt}
+    \renewcommand{\footrulewidth}{0pt}
+}
+
+\fancypagestyle{nasabody}{
+    \fancyhf{}
+    \fancyfoot[C]{\thepage}
+    \renewcommand{\headrulewidth}{0pt}
+    \renewcommand{\footrulewidth}{0pt}
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% DOCUMENT
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+\pagenumbering{Alph}  % Temporary page numbering for title pages to avoid duplicate identifiers
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% TITLE PAGE
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{titlepage}
+\thispagestyle{nasatitle}
+
+% Top left - Document number
+\noindent
+{\Large\bfseries \docnumber}
+
+\vspace{0.3in}
+
+% NASA logo
+\noindent
+\includegraphics[width=1.25in]{NASA_logo.svg.png}
+
+\vspace{0.5in}
+
+% Title
+\noindent
+{\LARGE\bfseries \doctitle}
+
+\vspace{0.15in}
+
+% Subtitle
+\noindent
+{\large \docsubtitle}
+
+\vspace{0.5in}
+
+% Author
+\noindent
+{\large \docauthorA}\\[3pt]
+{\itshape \docaffiliationA}
+
+\vfill
+
+% Bottom left
+\noindent
+{\bfseries National Aeronautics and Space Administration}
+
+\vspace{0.1in}
+
+\noindent
+\doccenter\\
+\doclocation
+
+\vspace{0.25in}
+
+\noindent
+\docmonth~\docyear
+
+\end{titlepage}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% BLANK PAGE (verso of title page)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newpage
+\thispagestyle{nasatitle}
+\stepcounter{page}
+\mbox{}
+\newpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% EXECUTIVE SUMMARY
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\pagestyle{nasafront}
+\pagenumbering{roman}
+\setcounter{page}{1}
+
+\section*{Executive Summary}
+\addcontentsline{toc}{section}{Executive Summary}
+
+\input{sections/abstract}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% FRONT MATTER
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newpage
+\tableofcontents
+
+\newpage
+\listoffigures
+
+\newpage
+\listoftables
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% LIST OF ACRONYMS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newpage
+\section*{List of Acronyms}
+\addcontentsline{toc}{section}{List of Acronyms}
+
+\begin{tabular}{@{}ll@{}}
+AGL & Above Ground Level \\
+ASP & Airborne Science Program \\
+CFM & Commercial Fan Moteur (CFM International) \\
+ETOPS & Extended-range Twin-engine Operations \\
+GE & General Electric \\
+ISA & International Standard Atmosphere \\
+KPMD & Palmdale Regional Airport (ICAO code) \\
+KTAS & Knots True Airspeed \\
+L/D & Lift-to-Drag Ratio \\
+MTOW & Maximum Takeoff Weight \\
+MZFW & Maximum Zero Fuel Weight \\
+NASA & National Aeronautics and Space Administration \\
+NZCH & Christchurch International Airport (ICAO code) \\
+OEW & Operating Empty Weight \\
+RMS & Root Mean Square \\
+SCCI & Punta Arenas Airport (ICAO code) \\
+SCEL & Santiago International Airport (ICAO code) \\
+SLS & Sea Level Static \\
+TM & Technical Memorandum \\
+TSFC & Thrust Specific Fuel Consumption \\
+\end{tabular}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% MAIN CONTENT
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newpage
+\pagestyle{nasabody}
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+% Section 1
+\section{Introduction}
+\label{sec:introduction}
+\input{sections/introduction}
+
+% Section 2
+\section{Candidate Aircraft}
+\label{sec:aircraft}
+\input{sections/aircraft}
+
+% Section 3
+\section{Performance Modeling Methodology}
+\label{sec:methodology}
+\input{sections/methodology}
+
+% Section 4
+\section{Calibration Results}
+\label{sec:calibration}
+\input{sections/calibration}
+
+% Section 5
+\section{Mission 1: Long-Range Transport with Engine-Out}
+\label{sec:mission1}
+\input{sections/mission1}
+
+% Section 6
+\section{Mission 2: Vertical Atmospheric Sampling}
+\label{sec:mission2}
+\input{sections/mission2}
+
+% Section 7
+\section{Mission 3: Low-Altitude Smoke Survey}
+\label{sec:mission3}
+\input{sections/mission3}
+
+% Section 8
+\section{Cross-Mission Synthesis}
+\label{sec:synthesis}
+\input{sections/synthesis}
+
+% Section 9
+\section{Qualitative Factors}
+\label{sec:qualitative}
+\input{sections/qualitative}
+
+% Section 10
+\section{Model Limitations and Confidence Assessment}
+\label{sec:limitations}
+\input{sections/limitations}
+
+% Section 11
+\section{Conclusions and Recommendations}
+\label{sec:conclusions}
+\input{sections/conclusions}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% REFERENCES
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newpage
+\printbibliography[heading=bibintoc,title={References}]
+
+\end{document}

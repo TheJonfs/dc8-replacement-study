@@ -1,0 +1,145 @@
+% Model Limitations and Confidence Assessment
+% Input file for main.tex — \section{} header is defined there
+
+\subsection{Model Architecture Limitations}
+\label{subsec:model-architecture-limitations}
+
+\subsubsection{Four-Parameter Calibration}
+\label{subsubsec:four-param-calibration}
+
+The performance model uses four free parameters ($C_{D_0}$, $e$, $k_{\text{adj}}$, $f_{oh}$) calibrated against three range-payload corner points. With four parameters and three constraints, the system is underdetermined, allowing non-unique solutions. This manifests as compensating parameter combinations: for example, the DC-8's low $k_{\text{adj}}$ (0.605) is compensated by its high $f_{oh}$ (0.260), producing correct range-payload predictions from individually unphysical parameters.
+
+The practical consequence is that the calibrated parameters cannot be interpreted individually as physical properties of the aircraft. The $C_{D_0}$ does not necessarily represent the true zero-lift drag; rather, it represents the value that, combined with the other three parameters, reproduces the published range-payload data. This limits the model's ability to predict performance at conditions far from the calibration points.
+
+\subsubsection{Drag Model Simplicity}
+\label{subsubsec:drag-model-simplicity}
+
+The parabolic drag polar $C_D = C_{D_0} + C_L^2/(\pi \cdot AR \cdot e)$ does not capture:
+
+\begin{itemize}
+    \item \textbf{Compressibility drag rise} near the drag-divergence Mach number
+    \item \textbf{Reynolds number effects} at varying altitudes and speeds
+    \item \textbf{Configuration-dependent drag} (landing gear, flaps, speed brakes)
+    \item \textbf{Store drag} from externally mounted instruments and pods
+\end{itemize}
+
+These omissions have low impact at design cruise conditions (the calibration regime) but can introduce errors at off-design conditions such as the low-speed, low-altitude flight of Mission~3 or the high-altitude ceiling operations of Mission~2.
+
+\subsubsection{Propulsion Model Simplicity}
+\label{subsubsec:propulsion-model-simplicity}
+
+The TSFC model uses a single altitude-dependent correction and a multiplicative calibration factor. It does not capture:
+
+\begin{itemize}
+    \item \textbf{Part-power effects}: TSFC varies with throttle setting, and most cruise segments operate well below maximum thrust.
+    \item \textbf{Mach-dependent TSFC}: The model's Mach dependence is limited.
+    \item \textbf{Installation effects}: Inlet pressure recovery, exhaust interference, and bleed air extraction affect installed TSFC.
+\end{itemize}
+
+The two-regime thrust lapse model (Section~3.3.2) captures the first-order altitude dependence but uses fixed exponents (0.75 below tropopause, 2.0 above) that may not accurately represent all engine types.
+
+\subsubsection{Non-Cruise Overhead Fraction}
+\label{subsubsec:non-cruise-overhead}
+
+The $f_{oh}$ model bundles all non-cruise fuel consumption into a single fraction of takeoff weight. This approach cannot distinguish between:
+
+\begin{itemize}
+    \item Taxi and takeoff fuel
+    \item Climb fuel (which varies with cruise altitude)
+    \item Descent and approach fuel
+    \item Contingency reserves
+\end{itemize}
+
+For Mission~1, this means reserves are implicit rather than explicit. For Missions~2 and~3, explicit reserve calculations are used instead.
+
+\subsection{Per-Aircraft Confidence}
+\label{subsec:per-aircraft-confidence}
+
+\subsubsection{Boeing 767-200ER --- High Confidence}
+\label{subsubsec:confidence-767}
+
+The 767 calibration produces physically reasonable parameters across all four dimensions. The RMS range error is machine-precision zero. Mission results are quantitatively reliable.
+
+\textbf{Remaining uncertainty}: The model has not been validated against actual 767 mission data. Published range-payload data may not perfectly represent the specific -200ER variant and engine combination modeled. The mission profiles (engine-out, sawtooth climb, low-altitude endurance) are far from the calibration conditions (optimized cruise).
+
+\subsubsection{Gulfstream G-V --- Medium Confidence}
+\label{subsubsec:confidence-gv}
+
+The G-V calibration is mostly physical, with a moderately low $k_{\text{adj}} = 0.801$ and elevated $f_{oh} = 0.131$. Results are directionally reliable but absolute fuel consumption may carry 15--20\% uncertainty.
+
+\textbf{Key uncertainty}: The G-V's fleet sizing (6--9 aircraft) amplifies any per-aircraft error by the fleet multiplier. A 20\% error in per-aircraft fuel consumption becomes a 20\% error in aggregate fleet cost.
+
+\subsubsection{Douglas DC-8-72 --- Low Confidence}
+\label{subsubsec:confidence-dc8}
+
+The $k_{\text{adj}} = 0.605$ implies the model consumes fuel at approximately 60\% of the rate indicated by published TSFC. This is compensated by $f_{oh} = 0.260$ (26\% of takeoff weight allocated to non-cruise overhead). The combined effect reproduces range-payload data but the individual parameters are unphysical.
+
+\textbf{Impact}: DC-8 fuel costs are systematically underestimated by approximately 40\%. The DC-8's apparent cost advantage (\$0.44/klb-nm on Mission~2, \$0.61/klb-nm on Mission~3) is an artifact of the low $k_{\text{adj}}$. Real costs would be 50--70\% higher, likely placing the DC-8 above the 767 in cost.
+
+\subsubsection{Boeing P-8 Poseidon --- Low Confidence}
+\label{subsubsec:confidence-p8}
+
+The $C_{D_0} = 0.0597$ is 3--4 times the expected value for a 737-derived airframe. This artifact propagates from the 737-900ER parent calibration and is amplified by the derivation process. The $k_{\text{adj}} = 0.339$ compensates, producing correct range-payload predictions from individually extreme parameters.
+
+\textbf{Impact}: Engine-out performance is not reliable (drag exceeds single-engine thrust at cruise altitudes). The P-8's low ceiling in Mission~2 (38,000--40,000~ft vs.\ published 41,000~ft) reflects the inflated $C_{D_0}$. Fuel consumption at low altitude (Mission~3) is $C_{D_0}$-dominated and therefore unreliable in absolute terms, though the relative ranking may still be approximately correct.
+
+\subsubsection{Airbus A330-200 --- Low Confidence}
+\label{subsubsec:confidence-a330}
+
+The Oswald efficiency $e = 2.165$ exceeds the theoretical maximum of 1.0 for a planar wing. The overhead fraction $f_{oh} \approx 0$ is implausibly low. The RMS error of 3.0\% is the second-highest.
+
+\textbf{Impact}: The A330's marginal Mission~2 pass (by only 49~nm) is within the model's uncertainty band. The absolute fuel consumption values carry substantial uncertainty. The A330 may be better or worse than the model suggests; the data does not support confident quantitative claims.
+
+\subsubsection{Boeing 777-200LR --- Low Confidence}
+\label{subsubsec:confidence-777}
+
+The calibration did not converge (RMS 6.5\%). The Oswald efficiency $e = 1.811$ is unphysical. The $C_{D_0} = 0.041$ is approximately double the expected value.
+
+\textbf{Impact}: The 777 likely passes all missions (its enormous fuel capacity and thrust provide large margins), but the model cannot confirm this with confidence. Cost estimates (\$1.15--\$1.76/klb-nm) are approximate.
+
+\subsection{Mission-Specific Confidence}
+\label{subsec:mission-specific-confidence}
+
+\begin{table}[htbp]
+    \centering
+    \caption[Mission-specific confidence assessment]{Mission-specific confidence assessment across key modeling factors.}
+    \label{tab:mission-confidence}
+    \small
+    \begin{tabular}{lp{3.2cm}p{3.2cm}p{3.2cm}}
+        \toprule
+        \textbf{Factor} & \textbf{Mission 1} & \textbf{Mission 2} & \textbf{Mission 3} \\
+        \midrule
+        Distance from calibration conditions & High (long-range cruise is near calibration) & Medium (climb/descend cycles at varying altitudes) & High (1,500~ft, Mach~0.38 is far from calibration) \\
+        \addlinespace
+        Engine-out modeling & Critical (determines pass/fail) & Not applicable & Not applicable \\
+        \addlinespace
+        Fleet sizing sensitivity & Medium (GV 8$\times$ amplifies errors) & Medium (GV 9$\times$, P-8 3$\times$) & Low (GV 6$\times$, P-8 2$\times$) \\
+        \addlinespace
+        Fuel budget method & $f_{oh}$ (implicit reserves) & Explicit reserves & Mission-sized + explicit reserves \\
+        \addlinespace
+        Discriminating power & High (only 1--2 aircraft pass) & Low (all pass) & None (all pass) \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Mission~1 results carry the most weight for the replacement decision because it is the only discriminating mission, but it is also the mission most affected by engine-out modeling uncertainties. The high confidence of the 767 calibration partially mitigates this: we can be confident in the 767's pass even though we cannot be confident in the other aircraft's failures.
+
+\subsection{What the Model Can and Cannot Tell Us}
+\label{subsec:model-can-cannot}
+
+\textbf{The model can reliably determine:}
+\begin{itemize}
+    \item The 767-200ER passes all three missions
+    \item The DC-8, GV, and P-8 cannot complete Mission~1
+    \item The 767 is the most cost-efficient single-aircraft option among candidates with reliable calibrations
+    \item Progressive ceiling increase occurs for lighter-fuel-burn aircraft on Mission~2
+    \item Mission-sized fuel loading is critical for fair Mission~3 comparison
+\end{itemize}
+
+\textbf{The model cannot reliably determine:}
+\begin{itemize}
+    \item Whether the 777-200LR or A330-200 can complete Mission~1 (engine-out modeling unreliable)
+    \item Absolute fuel costs for the DC-8, P-8, A330, or 777 (unphysical calibration parameters)
+    \item Whether the P-8's real Mission~2 ceiling exceeds 41,000~ft ($C_{D_0}$ artifact depresses ceiling)
+    \item The DC-8's true operating cost relative to replacement candidates
+\end{itemize}
